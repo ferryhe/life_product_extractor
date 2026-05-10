@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -151,6 +152,35 @@ def test_extract_candidate_bundle_rejects_missing_required_pr_e_fixture_ids() ->
     ]
 
     with pytest.raises(CandidateContractError, match="missing required PR E fixture ids"):
+        extract_candidate_bundle(
+            manifest,
+            base_dir=CANONICAL_FIXTURE_DIR,
+            routing=routing,
+            sections_documents=sections,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutated_input", "expected_error"),
+    [
+        ("routing", "routing documents contain duplicate document_id values"),
+        ("sections", "sections documents contain duplicate document_id values"),
+    ],
+)
+def test_extract_candidate_bundle_rejects_duplicate_input_document_ids(
+    mutated_input: str,
+    expected_error: str,
+) -> None:
+    manifest = load_fixture_manifest_document(CANONICAL_FIXTURE_DIR / "manifest.json")
+    routing = classify_fixture_manifest_from_path(CANONICAL_FIXTURE_DIR / "manifest.json")
+    sections = sectionize_fixture_manifest_from_path(CANONICAL_FIXTURE_DIR / "manifest.json")
+
+    if mutated_input == "routing":
+        routing["documents"].append(deepcopy(routing["documents"][0]))
+    else:
+        sections.append(deepcopy(sections[0]))
+
+    with pytest.raises(CandidateContractError, match=expected_error):
         extract_candidate_bundle(
             manifest,
             base_dir=CANONICAL_FIXTURE_DIR,

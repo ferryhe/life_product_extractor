@@ -95,9 +95,13 @@ def extract_candidate_bundle(
     if any(str(document["fixture_set_id"]) != fixture_set_id for document in sections_documents):
         raise CandidateContractError("sections fixture_set_id does not match manifest fixture_set_id")
 
-    manifest_docs = {str(document["fixture_id"]): dict(document) for document in manifest["documents"]}
-    routing_docs = {str(document["document_id"]): dict(document) for document in routing["documents"]}
-    sections_by_doc = {str(document["document_id"]): dict(document) for document in sections_documents}
+    manifest_docs = _index_unique_documents(manifest["documents"], id_key="fixture_id", collection_name="manifest documents")
+    routing_docs = _index_unique_documents(routing["documents"], id_key="document_id", collection_name="routing documents")
+    sections_by_doc = _index_unique_documents(
+        sections_documents,
+        id_key="document_id",
+        collection_name="sections documents",
+    )
     _validate_required_pr_e_fixture_ids(manifest_docs)
 
     missing_routing = sorted(document_id for document_id in manifest_docs if document_id not in routing_docs)
@@ -118,10 +122,6 @@ def extract_candidate_bundle(
         sections_document=sections_by_doc["manulife_par_whole_life"],
     )
     ul = _extract_manulife_ul(
-        manifest_docs=[
-            manifest_docs["manulife_universal_life_page"],
-            manifest_docs["manulife_universal_life_investment_accounts"],
-        ],
         routes=[
             routing_docs["manulife_universal_life_page"],
             routing_docs["manulife_universal_life_investment_accounts"],
@@ -319,7 +319,6 @@ def _extract_manulife_par(
 
 def _extract_manulife_ul(
     *,
-    manifest_docs: Sequence[Mapping[str, Any]],
     routes: Sequence[Mapping[str, Any]],
     sections_documents: Sequence[Mapping[str, Any]],
     scenarios: Sequence[Mapping[str, Any]],
@@ -505,6 +504,25 @@ def _validate_required_pr_e_fixture_ids(manifest_docs: Mapping[str, Mapping[str,
     missing_fixture_ids = sorted(fixture_id for fixture_id in SUPPORTED_FIXTURE_IDS if fixture_id not in manifest_docs)
     if missing_fixture_ids:
         raise CandidateContractError(f"manifest is missing required PR E fixture ids {missing_fixture_ids!r}")
+
+
+def _index_unique_documents(
+    documents: Sequence[Mapping[str, Any]],
+    *,
+    id_key: str,
+    collection_name: str,
+) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    duplicate_ids: set[str] = set()
+    for document in documents:
+        document_id = str(document[id_key])
+        if document_id in indexed:
+            duplicate_ids.add(document_id)
+            continue
+        indexed[document_id] = dict(document)
+    if duplicate_ids:
+        raise CandidateContractError(f"{collection_name} contain duplicate {id_key} values {sorted(duplicate_ids)!r}")
+    return indexed
 
 
 def _paired_source_scenarios_from_manifest(manifest: Mapping[str, Any]) -> dict[str, set[str]]:
