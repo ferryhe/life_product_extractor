@@ -22,7 +22,7 @@
                 "type": "object",
                 "required": ["path", "decision"],
                 "properties": {
-                  "path": { "type": "string", "minLength": 1 },
+                  "path": { "type": "string", "pattern": "^/products/[0-9]+/(decrements|benefits|explicit_unknowns)/[0-9]+$" },
                   "decision": { "type": "string", "enum": ["reviewed", "needs_human_review", "blocked"] }
                 },
                 "additionalProperties": true

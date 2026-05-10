@@ -24,6 +24,12 @@ from life_product_extractor.catalog import (
 )
 from life_product_extractor.extract import load_candidate_bundle_document, validate_candidate_bundle_document
 from life_product_extractor.fixtures import FixtureContractError
+from life_product_extractor.learn import (
+    LearningContractError,
+    build_skill_improvement_candidates_from_reviewed,
+    build_skill_improvement_candidates_from_reviewed_runs,
+    validate_skill_improvement_candidates_document,
+)
 from life_product_extractor.resources import resource_text
 from life_product_extractor.review import load_ai_review_document, load_validation_report_document
 from life_product_extractor.routing import validate_routing_document
@@ -73,6 +79,7 @@ def test_documented_schema_paths_exist() -> None:
         "review_decisions.schema.json",
         "reviewed_product.schema.json",
         "status_report.schema.json",
+        "skill_improvement_candidates.schema.json",
     ]
     for file_name in documented_schema_paths:
         assert (SCHEMAS / file_name).exists()
@@ -102,6 +109,9 @@ def test_packaged_resources_match_canonical_development_artifacts() -> None:
         SCHEMAS / "reviewed_product.schema.json"
     ).read_text()
     assert resource_text("schemas/status_report.schema.json") == (SCHEMAS / "status_report.schema.json").read_text()
+    assert resource_text("schemas/skill_improvement_candidates.schema.json") == (
+        SCHEMAS / "skill_improvement_candidates.schema.json"
+    ).read_text()
     assert resource_text("examples/sources/manulife_sources.yaml") == (
         ROOT / "examples" / "sources" / "manulife_sources.yaml"
     ).read_text()
@@ -303,11 +313,261 @@ def test_reviewed_product_composes_candidate_bundle_contract_and_requires_review
     invalid_bundle = reviewed_bundle | {"products": [{"bogus": True}]}
     assert any(list(error.path) == ["products", 0] for error in validator.iter_errors(invalid_bundle))
 
+    reviewed_bundle["review_metadata"]["decisions_applied"] = [{"path": "/products/0/benefits/not-a-number", "decision": "reviewed"}]
+    assert any(
+        list(error.path) == ["review_metadata", "decisions_applied", 0, "path"]
+        for error in validator.iter_errors(reviewed_bundle)
+    )
+
     reviewed_bundle["review_metadata"]["decisions_applied"] = [{"path": "/products/0/benefits/0", "decision": "invented"}]
     assert any(
         list(error.path) == ["review_metadata", "decisions_applied", 0, "decision"]
         for error in validator.iter_errors(reviewed_bundle)
     )
+
+
+def test_skill_improvement_candidates_schema_requires_proposal_guardrails() -> None:
+    validator = _schema_validator("skill_improvement_candidates.schema.json")
+    proposal = {
+        "schema_version": "0.1",
+        "run_id": "run_001",
+        "fixture_set_id": "fixture_set",
+        "source": "reviewed_product",
+        "summary": {
+            "candidate_count": 1,
+            "target_skillpack_count": 1,
+            "requires_fixture_count": 1,
+            "auto_applied_count": 0,
+        },
+        "candidates": [
+            {
+                "id": "skill_candidate_001",
+                "target_skillpack": "north_america/traditional_life",
+                "evidence_runs": [
+                    {
+                        "run_id": "run_001",
+                        "fixture_set_id": "fixture_set",
+                        "product_id": "sample_product",
+                        "decision_path": "/products/0/benefits/0",
+                        "decision": "reviewed",
+                        "finding_id": "benefit_1",
+                        "finding_label": "Death benefit",
+                        "confidence": 0.91,
+                        "review_status": "reviewed",
+                        "evidence_refs": ["evidence_1"],
+                        "evidence_spans": [
+                            {
+                                "id": "evidence_1",
+                                "source_id": "source_1",
+                                "document_id": "document_1",
+                                "section_id": "section_1",
+                                "line_start": 10,
+                                "line_end": 12,
+                                "span_start": 240,
+                                "span_end": 312,
+                                "source_quote": "The policy provides a death benefit.",
+                            }
+                        ],
+                    }
+                ],
+                "proposed_change": {
+                    "change_type": "extraction_rule",
+                    "scope": "benefits/0",
+                    "rationale": "Human correction should be reviewed before activation.",
+                    "status": "proposed_only",
+                },
+                "required_fixture": {
+                    "fixture_set_id": "fixture_set-skill-candidate-001",
+                    "description": "Regression fixture proving the proposed change.",
+                    "must_fail_before_activation": True,
+                },
+            }
+        ],
+    }
+    validator.validate(proposal)
+
+    missing_source = json.loads(json.dumps(proposal))
+    del missing_source["source"]
+    assert any(list(error.path) == [] and "source" in error.message for error in validator.iter_errors(missing_source))
+
+    auto_applied = json.loads(json.dumps(proposal))
+    auto_applied["summary"]["auto_applied_count"] = 1
+    assert any(list(error.path) == ["summary", "auto_applied_count"] for error in validator.iter_errors(auto_applied))
+
+    missing_fixture = json.loads(json.dumps(proposal))
+    del missing_fixture["candidates"][0]["required_fixture"]
+    assert any(list(error.path) == ["candidates", 0] and "required_fixture" in error.message for error in validator.iter_errors(missing_fixture))
+
+
+def test_build_skill_improvement_candidates_from_reviewed_is_proposed_only() -> None:
+    reviewed = {
+        "schema_version": "0.1",
+        "fixture_set_id": "fixture_set_a",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["fixture_set"],
+        },
+        "summary": {"product_count": 1, "supported_document_count": 1, "unsupported_document_count": 0},
+        "products": [_minimal_candidate()],
+        "unsupported_documents": [],
+        "review_metadata": {
+            "schema_version": "0.1",
+            "source": "review_decisions",
+            "run_id": "fixture_set_a-validation-v0-1",
+            "reviewer": "fixture-reviewer",
+            "decisions_applied": [
+                {
+                    "path": "/products/0/benefits/0",
+                    "decision": "reviewed",
+                    "reviewer_note": "Confirmed death benefit wording.",
+                }
+            ],
+        },
+    }
+    recurring_reviewed = json.loads(json.dumps(reviewed))
+    recurring_reviewed["fixture_set_id"] = "fixture_set_b"
+    recurring_reviewed["review_metadata"]["run_id"] = "fixture_set_b-validation-v0-1"
+
+    original = json.loads(json.dumps(reviewed))
+    single_run_proposal = build_skill_improvement_candidates_from_reviewed(reviewed)
+    proposal = build_skill_improvement_candidates_from_reviewed_runs([reviewed, recurring_reviewed])
+
+    validate_skill_improvement_candidates_document(proposal)
+    assert reviewed == original
+    assert single_run_proposal["summary"]["candidate_count"] == 0
+    assert proposal["summary"] == {
+        "candidate_count": 1,
+        "target_skillpack_count": 1,
+        "requires_fixture_count": 1,
+        "auto_applied_count": 0,
+    }
+    [candidate] = proposal["candidates"]
+    assert candidate["target_skillpack"] == "north_america/traditional_life"
+    assert [evidence["run_id"] for evidence in candidate["evidence_runs"]] == [
+        "fixture_set_a-validation-v0-1",
+        "fixture_set_b-validation-v0-1",
+    ]
+    assert candidate["evidence_runs"][0]["decision_path"] == "/products/0/benefits/0"
+    assert candidate["evidence_runs"][0]["source_quote"] == "The policy provides a death benefit."
+    assert candidate["evidence_runs"][0]["reviewer_note"] == "Confirmed death benefit wording."
+    assert "Confirmed death benefit wording." in candidate["proposed_change"]["rationale"]
+    assert candidate["evidence_runs"][0]["confidence"] == 0.91
+    assert candidate["evidence_runs"][0]["review_status"] == "ai_accepted"
+    assert candidate["evidence_runs"][0]["evidence_spans"] == reviewed["products"][0]["evidence"]
+    assert candidate["proposed_change"]["scope"] == "benefits/benefit_1"
+    assert candidate["proposed_change"]["status"] == "proposed_only"
+    assert candidate["required_fixture"]["must_fail_before_activation"] is True
+    reversed_proposal = build_skill_improvement_candidates_from_reviewed_runs([recurring_reviewed, reviewed])
+    assert reversed_proposal == proposal
+
+
+def test_skill_improvement_candidates_do_not_merge_different_findings_by_array_position() -> None:
+    reviewed = {
+        "schema_version": "0.1",
+        "fixture_set_id": "fixture_set_a",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["fixture_set"],
+        },
+        "summary": {"product_count": 1, "supported_document_count": 1, "unsupported_document_count": 0},
+        "products": [_minimal_candidate()],
+        "unsupported_documents": [],
+        "review_metadata": {
+            "schema_version": "0.1",
+            "source": "review_decisions",
+            "run_id": "fixture_set_a-validation-v0-1",
+            "reviewer": "fixture-reviewer",
+            "decisions_applied": [{"path": "/products/0/benefits/0", "decision": "reviewed"}],
+        },
+    }
+    other_reviewed = json.loads(json.dumps(reviewed))
+    other_reviewed["fixture_set_id"] = "fixture_set_b"
+    other_reviewed["review_metadata"]["run_id"] = "fixture_set_b-validation-v0-1"
+    other_reviewed["products"][0]["benefits"][0]["id"] = "benefit_conversion_option"
+    other_reviewed["products"][0]["benefits"][0]["label"] = "Conversion option"
+
+    proposal = build_skill_improvement_candidates_from_reviewed_runs([reviewed, other_reviewed])
+
+    assert proposal["summary"]["candidate_count"] == 0
+
+
+def test_skill_improvement_candidates_fall_back_to_finding_reviewer_note() -> None:
+    reviewed = {
+        "schema_version": "0.1",
+        "fixture_set_id": "fixture_set_a",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["fixture_set"],
+        },
+        "summary": {"product_count": 1, "supported_document_count": 1, "unsupported_document_count": 0},
+        "products": [_minimal_candidate()],
+        "unsupported_documents": [],
+        "review_metadata": {
+            "schema_version": "0.1",
+            "source": "review_decisions",
+            "run_id": "fixture_set_a-validation-v0-1",
+            "reviewer": "fixture-reviewer",
+            "decisions_applied": [{"path": "/products/0/benefits/0", "decision": "reviewed"}],
+        },
+    }
+    reviewed["products"][0]["benefits"][0]["reviewer_note"] = "Finding-level note from review apply."
+    recurring_reviewed = json.loads(json.dumps(reviewed))
+    recurring_reviewed["fixture_set_id"] = "fixture_set_b"
+    recurring_reviewed["review_metadata"]["run_id"] = "fixture_set_b-validation-v0-1"
+
+    proposal = build_skill_improvement_candidates_from_reviewed_runs([reviewed, recurring_reviewed])
+
+    [candidate] = proposal["candidates"]
+    assert candidate["evidence_runs"][0]["reviewer_note"] == "Finding-level note from review apply."
+    assert "Finding-level note from review apply." in candidate["proposed_change"]["rationale"]
+
+
+def test_skill_improvement_candidates_reject_missing_reviewed_finding_path() -> None:
+    reviewed = {
+        "schema_version": "0.1",
+        "fixture_set_id": "fixture_set_a",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["fixture_set"],
+        },
+        "summary": {"product_count": 1, "supported_document_count": 1, "unsupported_document_count": 0},
+        "products": [_minimal_candidate()],
+        "unsupported_documents": [],
+        "review_metadata": {
+            "schema_version": "0.1",
+            "source": "review_decisions",
+            "run_id": "fixture_set_a-validation-v0-1",
+            "reviewer": "fixture-reviewer",
+            "decisions_applied": [{"path": "/products/0/benefits/9", "decision": "reviewed"}],
+        },
+    }
+
+    with pytest.raises(LearningContractError, match="decision path does not target a reviewed finding"):
+        build_skill_improvement_candidates_from_reviewed(reviewed)
+
+
+def test_build_skill_improvement_candidates_validates_reviewed_contract() -> None:
+    invalid_reviewed = {
+        "fixture_set_id": "fixture_set",
+        "products": [
+            {
+                "product_id": "sample_product",
+                "product_identity": {"region_family": "north_america", "product_class_primary": "traditional_life"},
+                "benefits": [{"evidence_refs": [], "review_status": "reviewed"}],
+            }
+        ],
+        "review_metadata": {
+            "run_id": "run_001",
+            "decisions_applied": [{"path": "/products/0/benefits/0", "decision": "reviewed"}],
+        },
+    }
+
+    with pytest.raises(LearningContractError, match="reviewed product"):
+        build_skill_improvement_candidates_from_reviewed(invalid_reviewed)
 
 
 def test_cli_help_works() -> None:
@@ -326,6 +586,7 @@ def test_cli_help_works() -> None:
     assert "extract" in result.stdout
     assert "validate" in result.stdout
     assert "ai-review" in result.stdout
+    assert "learn" in result.stdout
 
 
 def test_cli_reports_missing_catalog_without_traceback() -> None:
@@ -743,6 +1004,37 @@ def test_cli_extracts_candidate_bundle_from_manifest_routing_and_sections(tmp_pa
     status_from_reviewed = json.loads(status_from_reviewed_json.read_text(encoding="utf-8"))
     assert status_from_reviewed["run_id"] == "manulife_tier1_curated-validation-v0-1"
     validate_status_report_document(status_from_reviewed)
+
+    recurring_reviewed = json.loads(reviewed_path.read_text(encoding="utf-8"))
+    recurring_reviewed["fixture_set_id"] = "manulife_tier1_curated_second_run"
+    recurring_reviewed["review_metadata"]["run_id"] = "manulife_tier1_curated_second_run-validation-v0-1"
+    recurring_reviewed_path = tmp_path / "reviewed_recurring.json"
+    recurring_reviewed_path.write_text(json.dumps(recurring_reviewed, ensure_ascii=False) + "\n", encoding="utf-8")
+    skill_candidates_path = tmp_path / "skill_improvement_candidates.json"
+    learn_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "learn",
+            "propose",
+            "--reviewed",
+            str(reviewed_path),
+            str(recurring_reviewed_path),
+            "--out",
+            str(skill_candidates_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(learn_result.stdout)["candidate_count"] == 1
+    skill_candidates = json.loads(skill_candidates_path.read_text(encoding="utf-8"))
+    validate_skill_improvement_candidates_document(skill_candidates)
+    assert skill_candidates["summary"]["auto_applied_count"] == 0
+    assert len(skill_candidates["candidates"][0]["evidence_runs"]) == 2
 
 
 def test_cli_extract_reports_missing_required_pr_e_fixture_without_traceback(tmp_path: Path) -> None:

@@ -24,6 +24,7 @@ from .review import (
 from .routing import RoutingContractError, classify_fixture_manifest_from_path
 from .sections import SectionContractError, sectionize_fixture_manifest_from_path
 from .orchestration import render_status_report_markdown, run_pipeline_from_path
+from .learn import LearningContractError, build_skill_improvement_candidates_from_reviewed_path
 from .status import (
     StatusContractError,
     build_status_report_from_artifact_paths,
@@ -265,6 +266,25 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--out-md", type=Path, required=True, help="Path where status_report.md will be written.")
     status.set_defaults(func=_cmd_status)
 
+    learn = subparsers.add_parser(
+        "learn",
+        help="Generate proposed-only skill improvement artifacts from reviewed runs.",
+    )
+    learn_subparsers = learn.add_subparsers(dest="learn_command")
+    learn_propose = learn_subparsers.add_parser(
+        "propose",
+        help="Write skill_improvement_candidates.json without mutating active skill packs.",
+    )
+    learn_propose.add_argument(
+        "--reviewed",
+        type=Path,
+        required=True,
+        nargs="+",
+        help="One or more reviewed.json files produced by review apply.",
+    )
+    learn_propose.add_argument("--out", type=Path, required=True, help="Path where skill_improvement_candidates.json will be written.")
+    learn_propose.set_defaults(func=_cmd_learn_propose)
+
     return parser
 
 
@@ -284,6 +304,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         CandidateContractError,
         ReviewContractError,
         StatusContractError,
+        LearningContractError,
     ) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
@@ -486,6 +507,27 @@ def _cmd_status(args: argparse.Namespace) -> int:
                 "status": report["summary"]["status"],
                 "status_json_path": str(args.out_json),
                 "status_md_path": str(args.out_md),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_learn_propose(args: argparse.Namespace) -> int:
+    proposal = build_skill_improvement_candidates_from_reviewed_path(args.reviewed)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(proposal, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "run_id": proposal["run_id"],
+                "fixture_set_id": proposal["fixture_set_id"],
+                "candidate_count": proposal["summary"]["candidate_count"],
+                "auto_applied_count": proposal["summary"]["auto_applied_count"],
+                "skill_improvement_candidates_path": str(args.out),
             },
             ensure_ascii=False,
             sort_keys=True,
