@@ -14,6 +14,7 @@ from .fixtures import (
 )
 from .resources import resource_path
 from .routing import RoutingContractError, classify_fixture_manifest_from_path
+from .sections import SectionContractError, sectionize_fixture_manifest_from_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -85,6 +86,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     classify.set_defaults(func=_cmd_classify)
 
+    sectionize = subparsers.add_parser(
+        "sectionize",
+        help="Sectionize a curated fixture manifest into deterministic sections_structured.jsonl output.",
+    )
+    sectionize.add_argument(
+        "--manifest",
+        type=Path,
+        required=True,
+        help="Path to a curated fixture manifest JSON file.",
+    )
+    sectionize.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Path where sections_structured.jsonl will be written.",
+    )
+    sectionize.set_defaults(func=_cmd_sectionize)
+
     return parser
 
 
@@ -96,7 +115,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         return int(args.func(args))
-    except (SourceCatalogError, FixtureContractError, RoutingContractError) as exc:
+    except (SourceCatalogError, FixtureContractError, RoutingContractError, SectionContractError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
 
@@ -150,6 +169,25 @@ def _cmd_classify(args: argparse.Namespace) -> int:
                 "document_count": routing["summary"]["document_count"],
                 "scenario_count": routing["summary"]["scenario_count"],
                 "routing_path": str(args.out),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_sectionize(args: argparse.Namespace) -> int:
+    sections_documents = sectionize_fixture_manifest_from_path(args.manifest)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    payload = "\n".join(json.dumps(document, ensure_ascii=False, sort_keys=False) for document in sections_documents) + "\n"
+    args.out.write_text(payload, encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "document_count": len(sections_documents),
+                "sections_path": str(args.out),
             },
             ensure_ascii=False,
             sort_keys=True,

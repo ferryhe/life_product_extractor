@@ -26,6 +26,13 @@ from .routing import (
     load_routing_document,
     validate_routing_document,
 )
+from .sections import (
+    SectionContractError,
+    load_sections_jsonl,
+    sectionize_fixture_manifest,
+    sectionize_fixture_manifest_from_path,
+    validate_sections_document,
+)
 
 __all__ = [
     "ALLOWED_AUTHORITY_LEVELS",
@@ -36,6 +43,7 @@ __all__ = [
     "ALLOWED_SECONDARY_TAGS",
     "FixtureContractError",
     "RoutingContractError",
+    "SectionContractError",
     "SourceCatalogError",
     "build_fixture_bundle",
     "build_fixture_bundle_from_paths",
@@ -43,8 +51,12 @@ __all__ = [
     "classify_fixture_manifest_from_path",
     "load_fixture_manifest_document",
     "load_routing_document",
+    "load_sections_jsonl",
     "load_source_catalog",
     "validate_routing_document",
+    "validate_sections_document",
     "validate_fixture_manifest_document",
     "validate_source_catalog",
+    "sectionize_fixture_manifest",
+    "sectionize_fixture_manifest_from_path",
 ]
