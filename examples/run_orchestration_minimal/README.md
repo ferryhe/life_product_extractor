@@ -10,6 +10,17 @@ life-extract run \
 
 The command writes `routing.json`, `sections_structured.jsonl`, `candidate.json`, `validation_report.json`, `ai_review.json`, `review.html`, `status_report.json`, and `status_report.md`.
 
+To rebuild status from the no-human-decision run artifacts:
+
+```bash
+life-extract status \
+  --candidate /tmp/life_product_extractor_run/candidate.json \
+  --validation /tmp/life_product_extractor_run/validation_report.json \
+  --ai-review /tmp/life_product_extractor_run/ai_review.json \
+  --out-json /tmp/life_product_extractor_run/status_report.json \
+  --out-md /tmp/life_product_extractor_run/status_report.md
+```
+
 To rebuild status after applying human review decisions:
 
 ```bash
