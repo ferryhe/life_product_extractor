@@ -314,9 +314,17 @@ def _derive_routing_flags(*, primary: str, secondary_tags: list[str]) -> list[st
 
 
 def _has_taxonomy_mismatch(*, document: Mapping[str, Any], catalog_entry: Mapping[str, Any]) -> bool:
+    document_secondary = _normalize_tag_list(
+        document.get("product_class_secondary"),
+        label=f"{document.get('fixture_id', 'document')}.product_class_secondary",
+    )
+    catalog_secondary = _normalize_tag_list(
+        catalog_entry.get("product_class_secondary"),
+        label=f"{catalog_entry.get('id', 'source_catalog')}.product_class_secondary",
+    )
     return (
         document.get("product_class_primary") != catalog_entry.get("product_class_primary")
-        or list(document.get("product_class_secondary", [])) != list(catalog_entry.get("product_class_secondary", []))
+        or document_secondary != catalog_secondary
         or document.get("region_family") != catalog_entry.get("region_family")
         or document.get("jurisdiction") != catalog_entry.get("jurisdiction")
     )

@@ -148,6 +148,32 @@
         "value": {},
         "quote": { "type": "string", "minLength": 1 }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "content_keyword" }
+            }
+          },
+          "then": {
+            "required": ["quote"],
+            "not": { "required": ["value"] }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": ["taxonomy_field", "document_metadata"]
+              }
+            }
+          },
+          "then": {
+            "required": ["value"],
+            "not": { "required": ["quote"] }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "documentRoute": {

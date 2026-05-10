@@ -337,6 +337,91 @@ def test_routing_schema_accepts_minimal_classification_artifact() -> None:
     validate_routing_document(routing)
 
 
+def test_routing_schema_requires_kind_specific_quote_or_value() -> None:
+    base_routing = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "source_catalog": {
+            "source": "bundled://examples/sources/manulife_sources.yaml",
+            "source_type": "bundled_resource",
+        },
+        "routing_strategy": {
+            "deterministic": True,
+            "manifest_taxonomy_precedence": True,
+            "taxonomy_sources_in_order": ["manifest_document", "source_catalog", "content_keywords"],
+        },
+        "summary": {
+            "document_count": 1,
+            "scenario_count": 1,
+            "primary_class_counts": {"traditional_life": 1},
+        },
+        "documents": [
+            {
+                "document_id": "sample_fixture",
+                "source_catalog_id": "sample_source",
+                "product_name": "Sample product",
+                "region_family": "north_america",
+                "jurisdiction": "CA",
+                "product_class_primary": "traditional_life",
+                "product_class_secondary": ["term_life"],
+                "routing_confidence": 1.0,
+                "classification_mode": "manifest_precedence",
+                "skill_pack_hint": "north_america/traditional_life",
+                "routing_flags": [],
+                "routing_evidence": [],
+            }
+        ],
+        "paired_source_scenarios": [
+            {
+                "scenario_id": "sample_scenario",
+                "product_name": "Sample product",
+                "relation": "known_overlap",
+                "fixture_ids": ["sample_fixture", "sample_fixture_peer"],
+                "source_catalog_ids": ["sample_source", "sample_source_peer"],
+                "product_class_primary": "traditional_life",
+                "product_class_secondary": ["term_life"],
+                "routing_implication": "reconcile_overlapping_same_product_evidence",
+                "rationale": "Overlapping same-product sources should be reconciled.",
+            }
+        ],
+    }
+
+    missing_quote = json.loads(json.dumps(base_routing))
+    missing_quote["documents"][0]["routing_evidence"] = [
+        {
+            "kind": "content_keyword",
+            "source": "markdown_excerpt",
+            "field": "headline_quote",
+        }
+    ]
+    with pytest.raises(Exception, match="quote"):
+        validate_routing_document(missing_quote)
+
+    missing_value = json.loads(json.dumps(base_routing))
+    missing_value["documents"][0]["routing_evidence"] = [
+        {
+            "kind": "taxonomy_field",
+            "source": "manifest_document",
+            "field": "product_class_primary",
+        }
+    ]
+    with pytest.raises(Exception, match="value"):
+        validate_routing_document(missing_value)
+
+    wrong_field_for_kind = json.loads(json.dumps(base_routing))
+    wrong_field_for_kind["documents"][0]["routing_evidence"] = [
+        {
+            "kind": "document_metadata",
+            "source": "manifest_document",
+            "field": "document_role",
+            "value": "product_marketing_page",
+            "quote": "should not be present",
+        }
+    ]
+    with pytest.raises(Exception, match="quote"):
+        validate_routing_document(wrong_field_for_kind)
+
+
 def test_installed_cli_validates_bundled_default_catalog_from_temp_cwd(tmp_path: Path) -> None:
     venv_dir = tmp_path / "venv"
     subprocess.run(

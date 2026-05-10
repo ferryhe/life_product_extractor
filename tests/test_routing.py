@@ -75,6 +75,36 @@ def test_classify_preserves_manifest_taxonomy_over_catalog_taxonomy() -> None:
     ]
 
 
+def test_classify_does_not_warn_for_secondary_tag_order_or_duplicates_only() -> None:
+    manifest = load_fixture_manifest_document(CANONICAL_FIXTURE_DIR / "manifest.json")
+    catalog = load_source_catalog_document(ROOT / "examples" / "sources" / "manulife_sources.yaml")
+
+    for document in manifest["documents"]:
+        if document["fixture_id"] == "synergy_combination_insurance":
+            document["product_class_secondary"] = [
+                "disability",
+                "critical_illness",
+                "combination_product",
+                "critical_illness",
+            ]
+            break
+    else:
+        raise AssertionError("expected synergy fixture in manifest")
+
+    mutated_routing = classify_fixture_manifest(
+        manifest,
+        base_dir=CANONICAL_FIXTURE_DIR,
+        catalog=catalog,
+    )
+    mutated = {document["document_id"]: document for document in mutated_routing["documents"]}
+    assert mutated["synergy_combination_insurance"]["product_class_secondary"] == [
+        "combination_product",
+        "critical_illness",
+        "disability",
+    ]
+    assert "routing_warnings" not in mutated["synergy_combination_insurance"]
+
+
 def test_cli_classify_smoke_with_generated_fixture_manifest(tmp_path: Path) -> None:
     fixture_dir = tmp_path / "fixtures"
     build_result = subprocess.run(
