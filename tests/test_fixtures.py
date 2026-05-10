@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,50 @@ def test_fixture_builder_rebuild_replaces_stale_document_files_in_same_output_di
     assert first_manifest == second_manifest == canonical_manifest
     assert not stale_path.exists()
     assert _snapshot_directory(out_dir) == _snapshot_directory(CANONICAL_FIXTURE_DIR)
+
+
+def test_fixture_builder_preserves_existing_output_when_manifest_replace_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out_dir = tmp_path / "out"
+
+    first_manifest = build_fixture_bundle_from_paths(spec_path=FIXTURE_SPEC_PATH, output_dir=out_dir)
+    before_snapshot = _snapshot_directory(out_dir)
+
+    original_replace = os.replace
+    fail_once = True
+
+    def failing_replace(src: os.PathLike[str] | str, dst: os.PathLike[str] | str) -> None:
+        nonlocal fail_once
+        if fail_once and Path(dst) == out_dir / "manifest.json":
+            fail_once = False
+            raise OSError("simulated manifest replace failure")
+        original_replace(src, dst)
+
+    monkeypatch.setattr("life_product_extractor.fixtures.os.replace", failing_replace)
+
+    with pytest.raises(FixtureContractError, match="could not write fixture bundle"):
+        build_fixture_bundle_from_paths(spec_path=FIXTURE_SPEC_PATH, output_dir=out_dir)
+
+    assert _snapshot_directory(out_dir) == before_snapshot
+    assert load_fixture_manifest_document(out_dir / "manifest.json") == first_manifest
+
+
+def test_fixture_builder_wraps_document_write_oserror(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    spec = yaml.safe_load(FIXTURE_SPEC_PATH.read_text())
+    spec_path = tmp_path / "fixture_builder.yaml"
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False))
+    original_write_text = Path.write_text
+
+    def failing_write_text(self: Path, data: str, *args: object, **kwargs: object) -> int:
+        if self.suffix == ".md":
+            raise OSError("simulated markdown write failure")
+        return original_write_text(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", failing_write_text)
+
+    with pytest.raises(FixtureContractError, match="could not write fixture bundle"):
+        build_fixture_bundle_from_paths(spec_path=spec_path, output_dir=tmp_path / "out")
 
 
 def test_fixture_manifest_preserves_provenance_and_overlap_signal() -> None:

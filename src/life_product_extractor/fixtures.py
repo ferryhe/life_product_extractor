@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -13,7 +14,6 @@ import yaml
 
 from ._version import __version__
 from .catalog import (
-    SourceCatalogError,
     load_source_catalog_document,
     validate_source_catalog_document,
 )
@@ -32,7 +32,7 @@ class FixtureContractError(ValueError):
 def load_fixture_builder_spec(path: str | Path) -> dict[str, Any]:
     spec_path = Path(path)
     try:
-        raw_text = spec_path.read_text()
+        raw_text = spec_path.read_text(encoding="utf-8")
     except OSError as exc:
         raise FixtureContractError(f"could not read fixture builder spec {spec_path}: {exc.strerror or exc}") from exc
     try:
@@ -47,7 +47,7 @@ def load_fixture_builder_spec(path: str | Path) -> dict[str, Any]:
 def load_fixture_manifest_document(path: str | Path) -> dict[str, Any]:
     manifest_path = Path(path)
     try:
-        data = json.loads(manifest_path.read_text())
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise FixtureContractError(f"could not read fixture manifest {manifest_path}: {exc.strerror or exc}") from exc
     except json.JSONDecodeError as exc:
@@ -145,38 +145,40 @@ def build_fixture_bundle(
 
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=out_dir, prefix=".fixture-build-") as temp_dir_name:
-        temp_out_dir = Path(temp_dir_name)
-        documents_dir = temp_out_dir / "documents"
-        documents_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory(dir=out_dir, prefix=".fixture-build-") as temp_dir_name:
+            temp_out_dir = Path(temp_dir_name)
+            documents_dir = temp_out_dir / "documents"
+            documents_dir.mkdir(parents=True, exist_ok=True)
 
-        manifest_documents: list[dict[str, Any]] = []
-        for document_spec in documents_spec:
-            manifest_documents.append(_build_document_entry(document_spec, documents_dir, source_by_id))
+            manifest_documents: list[dict[str, Any]] = []
+            for document_spec in documents_spec:
+                manifest_documents.append(_build_document_entry(document_spec, documents_dir, source_by_id))
 
-        manifest = {
-            "schema_version": "0.1",
-            "fixture_set_id": fixture_set_id,
-            "source_catalog": {
-                "source": catalog_source,
-                "source_type": catalog_source_type,
-            },
-            "generated_by": {
-                "tool": "life_product_extractor.fixture_builder",
-                "version": __version__,
-            },
-            "documents": sorted(manifest_documents, key=lambda item: item["fixture_id"]),
-            "paired_source_scenarios": _build_paired_source_scenarios(scenarios_spec),
-        }
-        validate_fixture_manifest_document(manifest, base_dir=temp_out_dir)
+            manifest = {
+                "schema_version": "0.1",
+                "fixture_set_id": fixture_set_id,
+                "source_catalog": {
+                    "source": catalog_source,
+                    "source_type": catalog_source_type,
+                },
+                "generated_by": {
+                    "tool": "life_product_extractor.fixture_builder",
+                    "version": __version__,
+                },
+                "documents": sorted(manifest_documents, key=lambda item: item["fixture_id"]),
+                "paired_source_scenarios": _build_paired_source_scenarios(scenarios_spec),
+            }
+            validate_fixture_manifest_document(manifest, base_dir=temp_out_dir)
 
-        target_documents_dir = out_dir / "documents"
-        if target_documents_dir.exists():
-            shutil.rmtree(target_documents_dir)
-        shutil.move(str(documents_dir), str(target_documents_dir))
-
-        manifest_path = out_dir / "manifest.json"
-        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=False) + "\n")
+            manifest_path = temp_out_dir / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=False) + "\n",
+                encoding="utf-8",
+            )
+            _replace_fixture_output(temp_out_dir=temp_out_dir, out_dir=out_dir)
+    except OSError as exc:
+        raise FixtureContractError(f"could not write fixture bundle to {out_dir}: {exc.strerror or exc}") from exc
     return manifest
 
 
@@ -248,7 +250,7 @@ def _build_document_entry(
     markdown_text, selected_line_numbers = _render_markdown(raw_lines, markdown_blocks, fixture_id)
     markdown_bytes = markdown_text.encode("utf-8")
     markdown_path = Path("documents") / output_path.name
-    output_path.write_text(markdown_text)
+    output_path.write_text(markdown_text, encoding="utf-8")
 
     raw_text = "\n".join(raw_lines) + "\n"
     provenance = {
@@ -350,7 +352,8 @@ def _render_markdown(raw_lines: Sequence[str], markdown_blocks: Sequence[Mapping
 
 
 def _omitted_ranges(raw_line_count: int, selected_line_numbers: Sequence[int]) -> list[dict[str, int]]:
-    omitted_numbers = [line for line in range(1, raw_line_count + 1) if line not in set(selected_line_numbers)]
+    selected_set = set(selected_line_numbers)
+    omitted_numbers = [line for line in range(1, raw_line_count + 1) if line not in selected_set]
     if not omitted_numbers:
         return []
 
@@ -382,6 +385,41 @@ def _validated_output_path(documents_dir: Path, fixture_id: str, output_file: st
     except ValueError as exc:
         raise FixtureContractError(f"{fixture_id}: output_file resolves outside documents_dir") from exc
     return output_path
+
+
+def _replace_fixture_output(*, temp_out_dir: Path, out_dir: Path) -> None:
+    target_documents_dir = out_dir / "documents"
+    target_manifest_path = out_dir / "manifest.json"
+    new_documents_dir = temp_out_dir / "documents"
+    new_manifest_path = temp_out_dir / "manifest.json"
+
+    with tempfile.TemporaryDirectory(dir=out_dir, prefix=".fixture-commit-") as backup_dir_name:
+        backup_dir = Path(backup_dir_name)
+        backup_documents_dir = backup_dir / "documents"
+        backup_manifest_path = backup_dir / "manifest.json"
+        new_documents_installed = False
+        new_manifest_installed = False
+        try:
+            if target_documents_dir.exists():
+                shutil.move(str(target_documents_dir), str(backup_documents_dir))
+            if target_manifest_path.exists():
+                shutil.move(str(target_manifest_path), str(backup_manifest_path))
+
+            shutil.move(str(new_documents_dir), str(target_documents_dir))
+            new_documents_installed = True
+            os.replace(new_manifest_path, target_manifest_path)
+            new_manifest_installed = True
+        except Exception:
+            if new_manifest_installed and target_manifest_path.exists():
+                target_manifest_path.unlink()
+            if backup_manifest_path.exists():
+                os.replace(backup_manifest_path, target_manifest_path)
+
+            if new_documents_installed and target_documents_dir.exists():
+                shutil.rmtree(target_documents_dir)
+            if backup_documents_dir.exists():
+                shutil.move(str(backup_documents_dir), str(target_documents_dir))
+            raise
 
 
 def _required_str(mapping: Mapping[str, Any], key: str) -> str:

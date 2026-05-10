@@ -9,9 +9,11 @@ import sysconfig
 from pathlib import Path
 
 import jsonschema
+import pytest
 import yaml
 from referencing import Registry, Resource
 
+from life_product_extractor import cli
 from life_product_extractor.catalog import (
     ALLOWED_AUTHORITY_LEVELS,
     ALLOWED_DOCUMENT_ROLES,
@@ -20,6 +22,7 @@ from life_product_extractor.catalog import (
     ALLOWED_REGION_FAMILIES,
     ALLOWED_SECONDARY_TAGS,
 )
+from life_product_extractor.fixtures import FixtureContractError
 from life_product_extractor.resources import resource_text
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -413,3 +416,21 @@ def test_cli_rejects_catalog_with_unsupported_top_level_key(tmp_path: Path) -> N
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
     assert "unsupported top-level keys" in payload["error"]
+
+
+def test_cli_build_fixtures_reports_wrapped_builder_oserror_as_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def raise_wrapped_oserror(**_: object) -> dict[str, object]:
+        raise FixtureContractError("could not write fixture bundle to /tmp/out: simulated write failure")
+
+    monkeypatch.setattr(cli, "build_fixture_bundle_from_paths", raise_wrapped_oserror)
+
+    exit_code = cli.main(["build-fixtures", "--out-dir", str(tmp_path / "fixtures")])
+
+    assert exit_code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "ok": False,
+        "error": "could not write fixture bundle to /tmp/out: simulated write failure",
+    }
