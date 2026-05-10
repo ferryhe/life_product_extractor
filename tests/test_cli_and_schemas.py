@@ -22,6 +22,7 @@ from life_product_extractor.catalog import (
     ALLOWED_REGION_FAMILIES,
     ALLOWED_SECONDARY_TAGS,
 )
+from life_product_extractor.extract import load_candidate_bundle_document, validate_candidate_bundle_document
 from life_product_extractor.fixtures import FixtureContractError
 from life_product_extractor.resources import resource_text
 from life_product_extractor.routing import validate_routing_document
@@ -60,6 +61,7 @@ def test_documented_schema_paths_exist() -> None:
         "routing.schema.json",
         "sections_structured.schema.json",
         "candidate_product.schema.json",
+        "candidate_bundle.schema.json",
         "ai_review.schema.json",
         "review_decisions.schema.json",
         "reviewed_product.schema.json",
@@ -76,6 +78,12 @@ def test_packaged_resources_match_canonical_development_artifacts() -> None:
     assert resource_text("schemas/sections_structured.schema.json") == (
         SCHEMAS / "sections_structured.schema.json"
     ).read_text()
+    assert resource_text("schemas/candidate_product.schema.json") == (
+        SCHEMAS / "candidate_product.schema.json"
+    ).read_text()
+    assert resource_text("schemas/candidate_bundle.schema.json") == (
+        SCHEMAS / "candidate_bundle.schema.json"
+    ).read_text()
     assert resource_text("examples/sources/manulife_sources.yaml") == (
         ROOT / "examples" / "sources" / "manulife_sources.yaml"
     ).read_text()
@@ -91,12 +99,15 @@ def _schema_validator(file_name: str) -> jsonschema.Draft202012Validator:
 def _minimal_candidate() -> dict[str, object]:
     return {
         "schema_version": "0.1",
+        "product_id": "sample_product",
         "product_identity": {
             "product_name": "Sample product",
             "region_family": "north_america",
             "jurisdiction": "CA",
             "product_class_primary": "traditional_life",
         },
+        "source_document_ids": ["document_1"],
+        "paired_source_scenario_ids": ["scenario_1"],
         "decrements": [],
         "benefits": [
             {
@@ -105,6 +116,17 @@ def _minimal_candidate() -> dict[str, object]:
                 "evidence_refs": ["evidence_1"],
                 "confidence": 0.91,
                 "review_status": "ai_accepted",
+            }
+        ],
+        "explicit_unknowns": [
+            {
+                "id": "unknown_1",
+                "path": "/decrements/surrender_lapse",
+                "label": "Surrender or lapse decrement",
+                "status": "not_in_excerpt",
+                "reason": "The excerpt does not describe surrender or lapse mechanics.",
+                "review_status": "blocked",
+                "confidence": 1.0,
             }
         ],
         "evidence": [
@@ -117,7 +139,7 @@ def _minimal_candidate() -> dict[str, object]:
                 "line_end": 12,
                 "span_start": 240,
                 "span_end": 312,
-                "quote": "The policy provides a death benefit.",
+                "source_quote": "The policy provides a death benefit.",
             }
         ],
     }
@@ -143,10 +165,31 @@ def test_candidate_product_requires_minimum_audit_shape() -> None:
             "id": "evidence_1",
             "source_id": "source_1",
             "document_id": "document_1",
-            "quote": "The policy provides a death benefit.",
+            "source_quote": "The policy provides a death benefit.",
         }
     ]
     assert any(list(error.path) == ["evidence", 0] for error in validator.iter_errors(missing_coordinates))
+
+
+def test_candidate_bundle_schema_accepts_minimal_bundle_artifact() -> None:
+    bundle = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["sample_fixture"],
+        },
+        "summary": {
+            "product_count": 1,
+            "supported_document_count": 1,
+            "unsupported_document_count": 0,
+        },
+        "products": [_minimal_candidate()],
+        "unsupported_documents": [],
+    }
+
+    validate_candidate_bundle_document(bundle)
 
 
 def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review() -> None:
@@ -215,6 +258,7 @@ def test_cli_help_works() -> None:
     assert "validate-catalog" in result.stdout
     assert "classify" in result.stdout
     assert "sectionize" in result.stdout
+    assert "extract" in result.stdout
 
 
 def test_cli_reports_missing_catalog_without_traceback() -> None:
@@ -416,6 +460,171 @@ def test_cli_sectionizes_manifest_into_jsonl(tmp_path: Path) -> None:
     documents = load_sections_jsonl(out_path)
     assert len(documents) == 8
     assert documents[0]["schema_version"] == "0.1"
+
+
+def test_cli_extracts_candidate_bundle_from_manifest_routing_and_sections(tmp_path: Path) -> None:
+    routing_path = tmp_path / "routing.json"
+    sections_path = tmp_path / "sections_structured.jsonl"
+    candidate_path = tmp_path / "candidate.json"
+
+    classify_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "classify",
+            "--manifest",
+            str(ROOT / "examples" / "fixtures" / "manulife_tier1_curated" / "manifest.json"),
+            "--out",
+            str(routing_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(classify_result.stdout)["ok"] is True
+
+    sectionize_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "sectionize",
+            "--manifest",
+            str(ROOT / "examples" / "fixtures" / "manulife_tier1_curated" / "manifest.json"),
+            "--out",
+            str(sections_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(sectionize_result.stdout)["ok"] is True
+
+    extract_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "extract",
+            "--manifest",
+            str(ROOT / "examples" / "fixtures" / "manulife_tier1_curated" / "manifest.json"),
+            "--routing",
+            str(routing_path),
+            "--sections",
+            str(sections_path),
+            "--out",
+            str(candidate_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(extract_result.stdout)
+    assert payload == {
+        "candidate_path": str(candidate_path),
+        "fixture_set_id": "manulife_tier1_curated",
+        "ok": True,
+        "product_count": 3,
+        "unsupported_document_count": 4,
+    }
+
+    candidate_bundle = load_candidate_bundle_document(candidate_path)
+    assert candidate_bundle["summary"]["product_count"] == 3
+
+
+def test_cli_extract_reports_missing_required_pr_e_fixture_without_traceback(tmp_path: Path) -> None:
+    manifest = json.loads((ROOT / "examples" / "fixtures" / "manulife_tier1_curated" / "manifest.json").read_text())
+    manifest["documents"] = [
+        document for document in manifest["documents"] if document["fixture_id"] != "manulife_par_whole_life"
+    ]
+    fixture_dir = ROOT / "examples" / "fixtures" / "manulife_tier1_curated"
+
+    manifest_path = tmp_path / "manifest.json"
+    routing_path = tmp_path / "routing.json"
+    sections_path = tmp_path / "sections_structured.jsonl"
+    candidate_path = tmp_path / "candidate.json"
+    documents_dir = tmp_path / "documents"
+    documents_dir.mkdir()
+
+    for document in manifest["documents"]:
+        source_path = fixture_dir / document["markdown_path"]
+        target_path = documents_dir / Path(document["markdown_path"]).name
+        target_path.write_text(source_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    classify_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "classify",
+            "--manifest",
+            str(manifest_path),
+            "--out",
+            str(routing_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(classify_result.stdout)["ok"] is True
+
+    sectionize_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "sectionize",
+            "--manifest",
+            str(manifest_path),
+            "--out",
+            str(sections_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(sectionize_result.stdout)["ok"] is True
+
+    extract_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "extract",
+            "--manifest",
+            str(manifest_path),
+            "--routing",
+            str(routing_path),
+            "--sections",
+            str(sections_path),
+            "--out",
+            str(candidate_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert extract_result.returncode == 2
+    assert "Traceback" not in extract_result.stderr
+    payload = json.loads(extract_result.stdout)
+    assert payload["ok"] is False
+    assert "missing required PR E fixture ids" in payload["error"]
 
 
 def test_routing_schema_accepts_minimal_classification_artifact() -> None:

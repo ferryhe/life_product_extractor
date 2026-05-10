@@ -7,6 +7,7 @@ from typing import Sequence
 
 from ._version import __version__
 from .catalog import SourceCatalogError, load_source_catalog_document, validate_source_catalog_document
+from .extract import CandidateContractError, extract_candidate_bundle_from_paths
 from .fixtures import (
     DEFAULT_FIXTURE_SPEC_RESOURCE,
     FixtureContractError,
@@ -104,6 +105,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sectionize.set_defaults(func=_cmd_sectionize)
 
+    extract = subparsers.add_parser(
+        "extract",
+        help="Extract deterministic candidate.json output from manifest, routing, and sectionized inputs.",
+    )
+    extract.add_argument(
+        "--manifest",
+        type=Path,
+        required=True,
+        help="Path to a curated fixture manifest JSON file.",
+    )
+    extract.add_argument(
+        "--routing",
+        type=Path,
+        required=True,
+        help="Path to routing.json produced by life-extract classify.",
+    )
+    extract.add_argument(
+        "--sections",
+        type=Path,
+        required=True,
+        help="Path to sections_structured.jsonl produced by life-extract sectionize.",
+    )
+    extract.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Path where candidate.json will be written.",
+    )
+    extract.set_defaults(func=_cmd_extract)
+
     return parser
 
 
@@ -115,7 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         return int(args.func(args))
-    except (SourceCatalogError, FixtureContractError, RoutingContractError, SectionContractError) as exc:
+    except (SourceCatalogError, FixtureContractError, RoutingContractError, SectionContractError, CandidateContractError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
 
@@ -188,6 +219,30 @@ def _cmd_sectionize(args: argparse.Namespace) -> int:
                 "ok": True,
                 "document_count": len(sections_documents),
                 "sections_path": str(args.out),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_extract(args: argparse.Namespace) -> int:
+    candidate_bundle = extract_candidate_bundle_from_paths(
+        args.manifest,
+        routing_path=args.routing,
+        sections_path=args.sections,
+    )
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(candidate_bundle, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "fixture_set_id": candidate_bundle["fixture_set_id"],
+                "product_count": candidate_bundle["summary"]["product_count"],
+                "unsupported_document_count": candidate_bundle["summary"]["unsupported_document_count"],
+                "candidate_path": str(args.out),
             },
             ensure_ascii=False,
             sort_keys=True,
