@@ -25,6 +25,7 @@ from life_product_extractor.catalog import (
 from life_product_extractor.extract import load_candidate_bundle_document, validate_candidate_bundle_document
 from life_product_extractor.fixtures import FixtureContractError
 from life_product_extractor.resources import resource_text
+from life_product_extractor.review import load_ai_review_document, load_validation_report_document
 from life_product_extractor.routing import validate_routing_document
 from life_product_extractor.sections import load_sections_jsonl, validate_sections_document
 
@@ -62,6 +63,7 @@ def test_documented_schema_paths_exist() -> None:
         "sections_structured.schema.json",
         "candidate_product.schema.json",
         "candidate_bundle.schema.json",
+        "validation_report.schema.json",
         "ai_review.schema.json",
         "review_decisions.schema.json",
         "reviewed_product.schema.json",
@@ -84,6 +86,10 @@ def test_packaged_resources_match_canonical_development_artifacts() -> None:
     assert resource_text("schemas/candidate_bundle.schema.json") == (
         SCHEMAS / "candidate_bundle.schema.json"
     ).read_text()
+    assert resource_text("schemas/validation_report.schema.json") == (
+        SCHEMAS / "validation_report.schema.json"
+    ).read_text()
+    assert resource_text("schemas/ai_review.schema.json") == (SCHEMAS / "ai_review.schema.json").read_text()
     assert resource_text("examples/sources/manulife_sources.yaml") == (
         ROOT / "examples" / "sources" / "manulife_sources.yaml"
     ).read_text()
@@ -196,7 +202,9 @@ def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review
     validator = _schema_validator("ai_review.schema.json")
 
     empty_reviews = {
+        "schema_version": "0.1",
         "run_id": "run_001",
+        "candidate_fixture_set_id": "sample_fixture_set",
         "reviewer": {"type": "ai", "skillpack": "north_america/traditional_life", "version": "0.1.0"},
         "summary": {"ai_accepted_count": 0, "needs_human_review_count": 0, "blocked_count": 0},
         "field_reviews": [],
@@ -204,7 +212,9 @@ def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review
     assert any(list(error.path) == ["field_reviews"] for error in validator.iter_errors(empty_reviews))
 
     minimal_review = {
+        "schema_version": "0.1",
         "run_id": "run_001",
+        "candidate_fixture_set_id": "sample_fixture_set",
         "reviewer": {"type": "ai", "skillpack": "north_america/traditional_life", "version": "0.1.0"},
         "summary": {"ai_accepted_count": 0, "needs_human_review_count": 1, "blocked_count": 0},
         "field_reviews": [
@@ -219,6 +229,10 @@ def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review
         ],
     }
     validator.validate(minimal_review)
+
+    missing_fixture_set = dict(minimal_review)
+    del missing_fixture_set["candidate_fixture_set_id"]
+    assert any(list(error.path) == [] and "candidate_fixture_set_id" in error.message for error in validator.iter_errors(missing_fixture_set))
 
 
 def test_reviewed_product_composes_candidate_contract_and_requires_review_metadata() -> None:
@@ -259,6 +273,8 @@ def test_cli_help_works() -> None:
     assert "classify" in result.stdout
     assert "sectionize" in result.stdout
     assert "extract" in result.stdout
+    assert "validate" in result.stdout
+    assert "ai-review" in result.stdout
 
 
 def test_cli_reports_missing_catalog_without_traceback() -> None:
@@ -537,6 +553,56 @@ def test_cli_extracts_candidate_bundle_from_manifest_routing_and_sections(tmp_pa
 
     candidate_bundle = load_candidate_bundle_document(candidate_path)
     assert candidate_bundle["summary"]["product_count"] == 3
+
+    validation_path = tmp_path / "validation_report.json"
+    validate_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "validate",
+            "--candidate",
+            str(candidate_path),
+            "--out",
+            str(validation_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    validate_payload = json.loads(validate_result.stdout)
+    assert validate_payload["ok"] is True
+    assert validate_payload["status"] == "blocked"
+    validation_report = load_validation_report_document(validation_path)
+    assert validation_report["summary"]["blocked_count"] > 0
+
+    ai_review_path = tmp_path / "ai_review.json"
+    ai_review_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "ai-review",
+            "--candidate",
+            str(candidate_path),
+            "--validation",
+            str(validation_path),
+            "--out",
+            str(ai_review_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    ai_review_payload = json.loads(ai_review_result.stdout)
+    assert ai_review_payload["ok"] is True
+    assert ai_review_payload["blocked_count"] > 0
+    ai_review = load_ai_review_document(ai_review_path)
+    assert ai_review["summary"]["needs_human_review_count"] > 0
 
 
 def test_cli_extract_reports_missing_required_pr_e_fixture_without_traceback(tmp_path: Path) -> None:

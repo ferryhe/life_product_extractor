@@ -14,6 +14,11 @@ from .fixtures import (
     build_fixture_bundle_from_paths,
 )
 from .resources import resource_path
+from .review import (
+    ReviewContractError,
+    build_ai_review_from_paths,
+    build_validation_report_from_path,
+)
 from .routing import RoutingContractError, classify_fixture_manifest_from_path
 from .sections import SectionContractError, sectionize_fixture_manifest_from_path
 
@@ -135,6 +140,48 @@ def build_parser() -> argparse.ArgumentParser:
     )
     extract.set_defaults(func=_cmd_extract)
 
+    validate = subparsers.add_parser(
+        "validate",
+        help="Validate candidate.json and write validation_report.json output.",
+    )
+    validate.add_argument(
+        "--candidate",
+        type=Path,
+        required=True,
+        help="Path to candidate.json produced by life-extract extract.",
+    )
+    validate.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Path where validation_report.json will be written.",
+    )
+    validate.set_defaults(func=_cmd_validate)
+
+    ai_review = subparsers.add_parser(
+        "ai-review",
+        help="Run deterministic AI-review stub and write ai_review.json output.",
+    )
+    ai_review.add_argument(
+        "--candidate",
+        type=Path,
+        required=True,
+        help="Path to candidate.json produced by life-extract extract.",
+    )
+    ai_review.add_argument(
+        "--validation",
+        type=Path,
+        required=True,
+        help="Path to validation_report.json produced by life-extract validate.",
+    )
+    ai_review.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Path where ai_review.json will be written.",
+    )
+    ai_review.set_defaults(func=_cmd_ai_review)
+
     return parser
 
 
@@ -146,7 +193,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         return int(args.func(args))
-    except (SourceCatalogError, FixtureContractError, RoutingContractError, SectionContractError, CandidateContractError) as exc:
+    except (
+        SourceCatalogError,
+        FixtureContractError,
+        RoutingContractError,
+        SectionContractError,
+        CandidateContractError,
+        ReviewContractError,
+    ) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
 
@@ -243,6 +297,47 @@ def _cmd_extract(args: argparse.Namespace) -> int:
                 "product_count": candidate_bundle["summary"]["product_count"],
                 "unsupported_document_count": candidate_bundle["summary"]["unsupported_document_count"],
                 "candidate_path": str(args.out),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    validation_report = build_validation_report_from_path(args.candidate)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(validation_report, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "run_id": validation_report["run_id"],
+                "status": validation_report["summary"]["status"],
+                "issue_count": len(validation_report["issues"]),
+                "validation_path": str(args.out),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_ai_review(args: argparse.Namespace) -> int:
+    ai_review = build_ai_review_from_paths(args.candidate, validation_path=args.validation)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(ai_review, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "run_id": ai_review["run_id"],
+                "field_review_count": len(ai_review["field_reviews"]),
+                "needs_human_review_count": ai_review["summary"]["needs_human_review_count"],
+                "blocked_count": ai_review["summary"]["blocked_count"],
+                "ai_review_path": str(args.out),
             },
             ensure_ascii=False,
             sort_keys=True,
