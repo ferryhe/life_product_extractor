@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 import hashlib
+import html
 import json
 from pathlib import Path
 from typing import Any
 
 import jsonschema
+from referencing import Registry, Resource
 
 from .extract import CandidateContractError, load_candidate_bundle_document, validate_candidate_bundle_document
 from .resources import resource_text
@@ -18,6 +21,7 @@ REVIEW_DECISIONS: tuple[str, ...] = (
     "not_applicable",
     "unknown",
 )
+HUMAN_REVIEWABLE_AI_DECISIONS: set[str] = {"needs_human_review", "blocked", "unknown"}
 
 
 class ReviewContractError(ValueError):
@@ -161,6 +165,102 @@ def build_ai_review(candidate_bundle: Mapping[str, Any], *, validation_report: M
     return review
 
 
+def build_human_review_html(candidate_bundle: Mapping[str, Any], *, ai_review: Mapping[str, Any]) -> str:
+    validate_candidate_bundle_document(candidate_bundle)
+    validate_ai_review_document(ai_review)
+    if str(ai_review["candidate_fixture_set_id"]) != str(candidate_bundle["fixture_set_id"]):
+        raise ReviewContractError("AI review candidate_fixture_set_id does not match candidate bundle fixture_set_id")
+
+    evidence_by_id = _evidence_by_id(candidate_bundle)
+    sections: list[str] = []
+    for field_review in ai_review["field_reviews"]:
+        if field_review["decision"] not in HUMAN_REVIEWABLE_AI_DECISIONS:
+            continue
+        candidate_item = _candidate_item_at_path(candidate_bundle, str(field_review["path"]))
+        if not isinstance(candidate_item, Mapping) or "review_status" not in candidate_item:
+            continue
+        evidence_refs = candidate_item.get("evidence_refs", [])
+        source_quotes = [str(evidence_by_id[ref].get("source_quote", "")) for ref in evidence_refs if ref in evidence_by_id]
+        sections.append(
+            "<article class=\"review-item\">"
+            f"<h2>{html.escape(str(field_review['path']))}</h2>"
+            f"<p><strong>AI decision:</strong> {html.escape(str(field_review['decision']))}</p>"
+            f"<p><strong>Reason:</strong> {html.escape(str(field_review['reason_code']))}</p>"
+            f"<p>{html.escape(str(field_review['rationale']))}</p>"
+            f"<pre>{html.escape(json.dumps(candidate_item, ensure_ascii=False, indent=2, sort_keys=True))}</pre>"
+            f"<blockquote>{html.escape(chr(10).join(source_quotes))}</blockquote>"
+            "</article>"
+        )
+    body = "\n".join(sections) or "<p>No fields require human review.</p>"
+    fixture_set_id = html.escape(str(candidate_bundle["fixture_set_id"]))
+    return (
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
+        f"<title>Human review bundle {fixture_set_id}</title>\n"
+        "</head>\n<body>\n"
+        f"<h1>Human review bundle: {fixture_set_id}</h1>\n"
+        "<p>This HTML is an interaction aid only. review_decisions.json is authoritative.</p>\n"
+        f"{body}\n</body>\n</html>\n"
+    )
+
+
+def build_human_review_html_from_paths(candidate_path: str | Path, *, ai_review_path: str | Path) -> str:
+    candidate_bundle = load_candidate_bundle_document(candidate_path)
+    ai_review = load_ai_review_document(ai_review_path)
+    return build_human_review_html(candidate_bundle, ai_review=ai_review)
+
+
+def load_review_decisions_document(path: str | Path) -> dict[str, Any]:
+    decisions_path = Path(path)
+    try:
+        data = json.loads(decisions_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ReviewContractError(f"could not read review decisions {decisions_path}: {exc.strerror or exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ReviewContractError(f"could not parse review decisions JSON {decisions_path}: {exc}") from exc
+    if not isinstance(data, Mapping):
+        raise ReviewContractError("review decisions must be a JSON object")
+    decisions = dict(data)
+    validate_review_decisions_document(decisions)
+    return decisions
+
+
+def apply_review_decisions(candidate_bundle: Mapping[str, Any], *, decisions: Mapping[str, Any]) -> dict[str, Any]:
+    validate_candidate_bundle_document(candidate_bundle)
+    validate_review_decisions_document(decisions)
+    if str(decisions["candidate_fixture_set_id"]) != str(candidate_bundle["fixture_set_id"]):
+        raise ReviewContractError("review decisions candidate_fixture_set_id does not match candidate bundle fixture_set_id")
+
+    reviewed = deepcopy(dict(candidate_bundle))
+    applied: list[dict[str, str]] = []
+    seen_paths: set[str] = set()
+    for decision in decisions["decisions"]:
+        path = str(decision["path"])
+        if path in seen_paths:
+            raise ReviewContractError(f"duplicate review decision path: {path}")
+        seen_paths.add(path)
+        item = _candidate_item_at_path(reviewed, path)
+        if not isinstance(item, dict) or "review_status" not in item:
+            raise ReviewContractError(f"review decision path is not a reviewable candidate field: {path}")
+        item["review_status"] = str(decision["decision"])
+        if decision.get("reviewer_note"):
+            item["reviewer_note"] = str(decision["reviewer_note"])
+        applied.append({"path": path, "decision": str(decision["decision"])})
+    reviewed["review_metadata"] = {
+        "schema_version": "0.1",
+        "source": "review_decisions",
+        "reviewer": str(decisions.get("reviewer", "unknown")),
+        "decisions_applied": applied,
+    }
+    validate_reviewed_product_document(reviewed)
+    return reviewed
+
+
+def apply_review_decisions_from_paths(candidate_path: str | Path, *, decisions_path: str | Path) -> dict[str, Any]:
+    candidate_bundle = load_candidate_bundle_document(candidate_path)
+    decisions = load_review_decisions_document(decisions_path)
+    return apply_review_decisions(candidate_bundle, decisions=decisions)
+
+
 def validate_validation_report_document(report: Mapping[str, Any]) -> None:
     schema = json.loads(resource_text("schemas/validation_report.schema.json"))
     try:
@@ -175,6 +275,31 @@ def validate_ai_review_document(review: Mapping[str, Any]) -> None:
         jsonschema.Draft202012Validator(schema).validate(review)
     except jsonschema.ValidationError as exc:
         raise ReviewContractError(f"AI review does not match ai_review.schema.json: {exc.message}") from exc
+
+
+def validate_review_decisions_document(decisions: Mapping[str, Any]) -> None:
+    schema = json.loads(resource_text("schemas/review_decisions.schema.json"))
+    try:
+        jsonschema.Draft202012Validator(schema).validate(decisions)
+    except jsonschema.ValidationError as exc:
+        raise ReviewContractError(f"review decisions do not match review_decisions.schema.json: {exc.message}") from exc
+
+
+def validate_reviewed_product_document(reviewed: Mapping[str, Any]) -> None:
+    validate_candidate_bundle_document(reviewed)
+    schema = json.loads(resource_text("schemas/reviewed_product.schema.json"))
+    candidate_bundle_schema = json.loads(resource_text("schemas/candidate_bundle.schema.json"))
+    candidate_product_schema = json.loads(resource_text("schemas/candidate_product.schema.json"))
+    registry = Registry().with_resources(
+        [
+            (candidate_bundle_schema["$id"], Resource.from_contents(candidate_bundle_schema)),
+            (candidate_product_schema["$id"], Resource.from_contents(candidate_product_schema)),
+        ]
+    )
+    try:
+        jsonschema.Draft202012Validator(schema, registry=registry).validate(reviewed)
+    except jsonschema.ValidationError as exc:
+        raise ReviewContractError(f"reviewed product does not match reviewed_product.schema.json: {exc.message}") from exc
 
 
 def _domain_issues(candidate_bundle: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -358,6 +483,34 @@ def _decision_priority(decision: str) -> int:
         "blocked": 4,
     }
     return priorities.get(decision, 2)
+
+
+def _evidence_by_id(candidate_bundle: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    evidence: dict[str, Mapping[str, Any]] = {}
+    for product in candidate_bundle["products"]:
+        for span in product.get("evidence", []):
+            if isinstance(span, Mapping):
+                evidence[str(span.get("id"))] = span
+    return evidence
+
+
+def _candidate_item_at_path(candidate_bundle: Mapping[str, Any], path: str) -> Any:
+    if not path.startswith("/"):
+        raise ReviewContractError(f"unsupported review path: {path}")
+    current: Any = candidate_bundle
+    for token in path.strip("/").split("/"):
+        if isinstance(current, Mapping):
+            if token not in current:
+                raise ReviewContractError(f"review path does not exist: {path}")
+            current = current[token]
+        elif isinstance(current, list):
+            try:
+                current = current[int(token)]
+            except (ValueError, IndexError) as exc:
+                raise ReviewContractError(f"review path does not exist: {path}") from exc
+        else:
+            raise ReviewContractError(f"review path does not exist: {path}")
+    return current
 
 
 def _issue(

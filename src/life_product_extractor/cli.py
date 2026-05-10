@@ -16,7 +16,9 @@ from .fixtures import (
 from .resources import resource_path
 from .review import (
     ReviewContractError,
+    apply_review_decisions_from_paths,
     build_ai_review_from_paths,
+    build_human_review_html_from_paths,
     build_validation_report_from_path,
 )
 from .routing import RoutingContractError, classify_fixture_manifest_from_path
@@ -182,6 +184,61 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ai_review.set_defaults(func=_cmd_ai_review)
 
+    review = subparsers.add_parser(
+        "review",
+        help="Build human review bundles and apply review_decisions.json.",
+    )
+    review_subparsers = review.add_subparsers(dest="review_command")
+
+    review_build_html = review_subparsers.add_parser(
+        "build-html",
+        help="Write a static HTML bundle for fields that need human review.",
+    )
+    review_build_html.add_argument(
+        "--candidate",
+        type=Path,
+        required=True,
+        help="Path to candidate.json produced by life-extract extract.",
+    )
+    review_build_html.add_argument(
+        "--ai-review",
+        dest="ai_review",
+        type=Path,
+        required=True,
+        help="Path to ai_review.json produced by life-extract ai-review.",
+    )
+    review_build_html.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Path where review.html will be written.",
+    )
+    review_build_html.set_defaults(func=_cmd_review_build_html)
+
+    review_apply = review_subparsers.add_parser(
+        "apply",
+        help="Apply authoritative review_decisions.json to candidate.json and write reviewed.json.",
+    )
+    review_apply.add_argument(
+        "--candidate",
+        type=Path,
+        required=True,
+        help="Path to candidate.json produced by life-extract extract.",
+    )
+    review_apply.add_argument(
+        "--decisions",
+        type=Path,
+        required=True,
+        help="Path to review_decisions.json provided by human review.",
+    )
+    review_apply.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Path where reviewed.json will be written.",
+    )
+    review_apply.set_defaults(func=_cmd_review_apply)
+
     return parser
 
 
@@ -338,6 +395,33 @@ def _cmd_ai_review(args: argparse.Namespace) -> int:
                 "needs_human_review_count": ai_review["summary"]["needs_human_review_count"],
                 "blocked_count": ai_review["summary"]["blocked_count"],
                 "ai_review_path": str(args.out),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_review_build_html(args: argparse.Namespace) -> int:
+    review_html = build_human_review_html_from_paths(args.candidate, ai_review_path=args.ai_review)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(review_html, encoding="utf-8")
+    print(json.dumps({"ok": True, "review_html_path": str(args.out)}, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def _cmd_review_apply(args: argparse.Namespace) -> int:
+    reviewed = apply_review_decisions_from_paths(args.candidate, decisions_path=args.decisions)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(reviewed, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "fixture_set_id": reviewed["fixture_set_id"],
+                "decisions_applied_count": len(reviewed["review_metadata"]["decisions_applied"]),
+                "reviewed_path": str(args.out),
             },
             ensure_ascii=False,
             sort_keys=True,

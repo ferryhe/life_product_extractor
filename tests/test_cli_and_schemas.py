@@ -90,6 +90,12 @@ def test_packaged_resources_match_canonical_development_artifacts() -> None:
         SCHEMAS / "validation_report.schema.json"
     ).read_text()
     assert resource_text("schemas/ai_review.schema.json") == (SCHEMAS / "ai_review.schema.json").read_text()
+    assert resource_text("schemas/review_decisions.schema.json") == (
+        SCHEMAS / "review_decisions.schema.json"
+    ).read_text()
+    assert resource_text("schemas/reviewed_product.schema.json") == (
+        SCHEMAS / "reviewed_product.schema.json"
+    ).read_text()
     assert resource_text("examples/sources/manulife_sources.yaml") == (
         ROOT / "examples" / "sources" / "manulife_sources.yaml"
     ).read_text()
@@ -235,27 +241,48 @@ def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review
     assert any(list(error.path) == [] and "candidate_fixture_set_id" in error.message for error in validator.iter_errors(missing_fixture_set))
 
 
-def test_reviewed_product_composes_candidate_contract_and_requires_review_metadata() -> None:
+def test_reviewed_product_composes_candidate_bundle_contract_and_requires_review_metadata() -> None:
     schema = json.loads((SCHEMAS / "reviewed_product.schema.json").read_text())
-    assert schema["allOf"][0]["$ref"] == "candidate_product.schema.json"
-    validator = _schema_validator("reviewed_product.schema.json")
-    candidate_like = _minimal_candidate()
-
-    assert any(list(error.path) == [] and "review_metadata" in error.message for error in validator.iter_errors(candidate_like))
-
-    reviewed = candidate_like | {
-        "review_metadata": {
-            "review_status": "reviewed",
-            "reviewed_at": "2026-05-09",
-            "decisions_applied": [],
-        }
+    assert schema["allOf"][0]["$ref"] == "candidate_bundle.schema.json"
+    candidate_bundle_schema = json.loads((SCHEMAS / "candidate_bundle.schema.json").read_text())
+    candidate_product_schema = json.loads((SCHEMAS / "candidate_product.schema.json").read_text())
+    registry = Registry().with_resources(
+        [
+            (candidate_bundle_schema["$id"], Resource.from_contents(candidate_bundle_schema)),
+            (candidate_product_schema["$id"], Resource.from_contents(candidate_product_schema)),
+        ]
+    )
+    validator = jsonschema.Draft202012Validator(schema, registry=registry)
+    reviewed_bundle = {
+        "schema_version": "0.1",
+        "fixture_set_id": "fixture_set",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["fixture_set"],
+        },
+        "summary": {"product_count": 0, "supported_document_count": 0, "unsupported_document_count": 0},
+        "products": [],
+        "unsupported_documents": [],
     }
-    validator.validate(reviewed)
 
-    reviewed["review_metadata"]["decisions_applied"] = [{"path": "/benefits/0", "decision": "invented"}]
+    assert any(list(error.path) == [] and "review_metadata" in error.message for error in validator.iter_errors(reviewed_bundle))
+
+    reviewed_bundle["review_metadata"] = {
+        "schema_version": "0.1",
+        "source": "review_decisions",
+        "reviewer": "fixture-reviewer",
+        "decisions_applied": [],
+    }
+    validator.validate(reviewed_bundle)
+
+    invalid_bundle = reviewed_bundle | {"products": [{"bogus": True}]}
+    assert any(list(error.path) == ["products", 0] for error in validator.iter_errors(invalid_bundle))
+
+    reviewed_bundle["review_metadata"]["decisions_applied"] = [{"path": "/products/0/benefits/0", "decision": "invented"}]
     assert any(
         list(error.path) == ["review_metadata", "decisions_applied", 0, "decision"]
-        for error in validator.iter_errors(reviewed)
+        for error in validator.iter_errors(reviewed_bundle)
     )
 
 
@@ -603,6 +630,67 @@ def test_cli_extracts_candidate_bundle_from_manifest_routing_and_sections(tmp_pa
     assert ai_review_payload["blocked_count"] > 0
     ai_review = load_ai_review_document(ai_review_path)
     assert ai_review["summary"]["needs_human_review_count"] > 0
+
+    review_html_path = tmp_path / "review.html"
+    review_html_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "review",
+            "build-html",
+            "--candidate",
+            str(candidate_path),
+            "--ai-review",
+            str(ai_review_path),
+            "--out",
+            str(review_html_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(review_html_result.stdout)["ok"] is True
+    assert "review_decisions.json is authoritative" in review_html_path.read_text(encoding="utf-8")
+
+    decisions_path = tmp_path / "review_decisions.json"
+    decisions_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "0.1",
+                "candidate_fixture_set_id": "manulife_tier1_curated",
+                "reviewer": "cli-fixture-reviewer",
+                "decisions": [{"path": "/products/0/benefits/1", "decision": "reviewed"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    reviewed_path = tmp_path / "reviewed.json"
+    review_apply_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "review",
+            "apply",
+            "--candidate",
+            str(candidate_path),
+            "--decisions",
+            str(decisions_path),
+            "--out",
+            str(reviewed_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(review_apply_result.stdout)["decisions_applied_count"] == 1
+    assert json.loads(reviewed_path.read_text(encoding="utf-8"))["products"][0]["benefits"][1]["review_status"] == "reviewed"
 
 
 def test_cli_extract_reports_missing_required_pr_e_fixture_without_traceback(tmp_path: Path) -> None:

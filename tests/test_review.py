@@ -9,10 +9,14 @@ from life_product_extractor.extract import extract_candidate_bundle
 from life_product_extractor.fixtures import load_fixture_manifest_document
 from life_product_extractor.review import (
     ReviewContractError,
+    apply_review_decisions,
     build_ai_review,
+    build_human_review_html,
     build_validation_report,
     build_validation_report_from_path,
     validate_ai_review_document,
+    validate_review_decisions_document,
+    validate_reviewed_product_document,
     validate_validation_report_document,
 )
 from life_product_extractor.routing import classify_fixture_manifest_from_path
@@ -134,6 +138,90 @@ def test_validation_and_ai_review_json_round_trip(tmp_path: Path) -> None:
 
     assert json.loads(report_path.read_text())["summary"]["warning_count"] == report["summary"]["warning_count"]
     assert json.loads(review_path.read_text())["summary"]["blocked_count"] == review["summary"]["blocked_count"]
+
+
+def test_human_review_html_is_selective_and_escaped() -> None:
+    candidate = _candidate_bundle()
+    candidate["products"][0]["evidence"][0]["source_quote"] = "<script>alert('x')</script>"
+    report = build_validation_report(candidate)
+    review = build_ai_review(candidate, validation_report=report)
+    review["field_reviews"].append(
+        {
+            "path": "/products/0/benefits/0",
+            "decision": "ai_accepted",
+            "materiality": "low",
+            "reason_code": "should_not_render",
+            "rationale": "accepted <b>field</b>",
+        }
+    )
+
+    html = build_human_review_html(candidate, ai_review=review)
+
+    assert "review_decisions.json is authoritative" in html
+    assert "should_not_render" not in html
+    assert "/unsupported_documents/" not in html
+    assert "<script>alert" not in html
+    assert "&lt;script&gt;alert" in html
+
+    review["field_reviews"][0]["path"] = "/products/999/benefits/0"
+    with pytest.raises(ReviewContractError, match="review path does not exist"):
+        build_human_review_html(candidate, ai_review=review)
+
+
+def test_review_decisions_schema_and_apply_updates_only_review_status() -> None:
+    candidate = _candidate_bundle()
+    original_label = candidate["products"][0]["benefits"][1]["label"]
+    decisions = {
+        "schema_version": "0.1",
+        "candidate_fixture_set_id": candidate["fixture_set_id"],
+        "reviewer": "fixture-reviewer",
+        "decisions": [
+            {
+                "path": "/products/0/benefits/1",
+                "decision": "reviewed",
+                "reviewer_note": "Confirmed against cited evidence.",
+            }
+        ],
+    }
+
+    validate_review_decisions_document(decisions)
+    reviewed = apply_review_decisions(candidate, decisions=decisions)
+
+    validate_reviewed_product_document(reviewed)
+    assert reviewed["products"][0]["benefits"][1]["review_status"] == "reviewed"
+    assert reviewed["products"][0]["benefits"][1]["label"] == original_label
+    assert reviewed["review_metadata"]["decisions_applied"] == [
+        {"path": "/products/0/benefits/1", "decision": "reviewed"}
+    ]
+
+
+def test_review_apply_rejects_duplicate_decision_paths() -> None:
+    candidate = _candidate_bundle()
+    decisions = {
+        "schema_version": "0.1",
+        "candidate_fixture_set_id": candidate["fixture_set_id"],
+        "reviewer": "fixture-reviewer",
+        "decisions": [
+            {"path": "/products/0/benefits/1", "decision": "reviewed"},
+            {"path": "/products/0/benefits/1", "decision": "blocked"},
+        ],
+    }
+
+    with pytest.raises(ReviewContractError, match="duplicate review decision path"):
+        apply_review_decisions(candidate, decisions=decisions)
+
+
+def test_review_apply_rejects_non_reviewable_paths() -> None:
+    candidate = _candidate_bundle()
+    decisions = {
+        "schema_version": "0.1",
+        "candidate_fixture_set_id": candidate["fixture_set_id"],
+        "reviewer": "fixture-reviewer",
+        "decisions": [{"path": "/products/0/product_identity/region_family", "decision": "reviewed"}],
+    }
+
+    with pytest.raises(ReviewContractError, match="review_decisions.schema.json"):
+        apply_review_decisions(candidate, decisions=decisions)
 
 
 def test_validation_from_path_writes_blocked_report_for_contract_invalid_candidate(tmp_path: Path) -> None:

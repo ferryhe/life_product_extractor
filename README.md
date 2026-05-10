@@ -13,5 +13,7 @@ Current implemented CLI slices:
 - `life-extract extract --manifest ... --routing ... --sections ... --out candidate.json`
 - `life-extract validate --candidate ... --out validation_report.json`
 - `life-extract ai-review --candidate ... --validation ... --out ai_review.json`
+- `life-extract review build-html --candidate ... --ai-review ... --out review.html`
+- `life-extract review apply --candidate ... --decisions ... --out reviewed.json`
 
 `sections_structured.jsonl` is a JSONL artifact with one structured document record per line. Each record preserves deterministic `section_id` values, heading hierarchy, Markdown line ranges, HTML-escaped `source_quote` strings, curated-source provenance, and any detected `table_artifacts`.
