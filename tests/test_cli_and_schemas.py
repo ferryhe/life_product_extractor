@@ -28,6 +28,11 @@ from life_product_extractor.resources import resource_text
 from life_product_extractor.review import load_ai_review_document, load_validation_report_document
 from life_product_extractor.routing import validate_routing_document
 from life_product_extractor.sections import load_sections_jsonl, validate_sections_document
+from life_product_extractor.status import (
+    StatusContractError,
+    build_status_report_from_artifacts,
+    validate_status_report_document,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMAS = ROOT / "schemas"
@@ -96,6 +101,7 @@ def test_packaged_resources_match_canonical_development_artifacts() -> None:
     assert resource_text("schemas/reviewed_product.schema.json") == (
         SCHEMAS / "reviewed_product.schema.json"
     ).read_text()
+    assert resource_text("schemas/status_report.schema.json") == (SCHEMAS / "status_report.schema.json").read_text()
     assert resource_text("examples/sources/manulife_sources.yaml") == (
         ROOT / "examples" / "sources" / "manulife_sources.yaml"
     ).read_text()
@@ -690,7 +696,35 @@ def test_cli_extracts_candidate_bundle_from_manifest_routing_and_sections(tmp_pa
         check=True,
     )
     assert json.loads(review_apply_result.stdout)["decisions_applied_count"] == 1
-    assert json.loads(reviewed_path.read_text(encoding="utf-8"))["products"][0]["benefits"][1]["review_status"] == "reviewed"
+    reviewed_payload = json.loads(reviewed_path.read_text(encoding="utf-8"))
+    assert reviewed_payload["products"][0]["benefits"][1]["review_status"] == "reviewed"
+    assert reviewed_payload["review_metadata"]["run_id"] == "manulife_tier1_curated-validation-v0-1"
+
+    status_from_reviewed_json = tmp_path / "status_from_reviewed.json"
+    status_from_reviewed_md = tmp_path / "status_from_reviewed.md"
+    status_from_reviewed_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "status",
+            "--reviewed",
+            str(reviewed_path),
+            "--out-json",
+            str(status_from_reviewed_json),
+            "--out-md",
+            str(status_from_reviewed_md),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(status_from_reviewed_result.stdout)["ok"] is True
+    status_from_reviewed = json.loads(status_from_reviewed_json.read_text(encoding="utf-8"))
+    assert status_from_reviewed["run_id"] == "manulife_tier1_curated-validation-v0-1"
+    validate_status_report_document(status_from_reviewed)
 
 
 def test_cli_extract_reports_missing_required_pr_e_fixture_without_traceback(tmp_path: Path) -> None:
@@ -1084,3 +1118,163 @@ def test_cli_build_fixtures_reports_wrapped_builder_oserror_as_json(
         "ok": False,
         "error": "could not write fixture bundle to /tmp/out: simulated write failure",
     }
+
+
+def test_cli_run_and_status_from_artifacts_pipeline(tmp_path: Path) -> None:
+    out_dir = tmp_path / "run"
+    manifest = ROOT / "examples" / "fixtures" / "manulife_tier1_curated" / "manifest.json"
+    run_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "run",
+            "--manifest",
+            str(manifest),
+            "--out",
+            str(out_dir),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    run_payload = json.loads(run_result.stdout)
+    assert run_payload["ok"] is True
+    expected_files = [
+        "routing.json",
+        "sections_structured.jsonl",
+        "candidate.json",
+        "validation_report.json",
+        "ai_review.json",
+        "review.html",
+        "status_report.json",
+        "status_report.md",
+    ]
+    for file_name in expected_files:
+        assert (out_dir / file_name).exists()
+    status_report = json.loads((out_dir / "status_report.json").read_text(encoding="utf-8"))
+    validate_status_report_document(status_report)
+    assert status_report["source"] == "run_artifacts"
+    assert status_report["summary"]["status"] == "blocked"
+    blocker_paths = {blocker["path"] for blocker in status_report["blockers"]}
+    ai_review_payload = json.loads((out_dir / "ai_review.json").read_text(encoding="utf-8"))
+    escalated_paths = {
+        review["path"]
+        for review in ai_review_payload["field_reviews"]
+        if review["decision"] in {"blocked", "needs_human_review", "unknown"}
+    }
+    assert escalated_paths <= blocker_paths
+    assert "# Status report:" in (out_dir / "status_report.md").read_text(encoding="utf-8")
+
+    candidate_bundle = load_candidate_bundle_document(out_dir / "candidate.json")
+    validation_report = load_validation_report_document(out_dir / "validation_report.json")
+    ai_review = load_ai_review_document(out_dir / "ai_review.json")
+    mismatched_ai_review = dict(ai_review)
+    mismatched_ai_review["run_id"] = "run_mismatch"
+    with pytest.raises(StatusContractError, match="run_id"):
+        build_status_report_from_artifacts(
+            candidate_bundle=candidate_bundle,
+            validation_report=validation_report,
+            ai_review=mismatched_ai_review,
+        )
+
+    validation_error_ai_accepted = json.loads(json.dumps(validation_report))
+    validation_error_ai_accepted["issues"].append(
+        {
+            "path": "/products/0/benefits/0",
+            "severity": "error",
+            "check": "synthetic_contract_error",
+            "message": "Synthetic validation error must block status even if review decision is accepted.",
+            "review_decision": "ai_accepted",
+            "materiality": "high",
+        }
+    )
+    ai_review_all_clear = json.loads(json.dumps(ai_review))
+    ai_review_all_clear["summary"] = {
+        **ai_review_all_clear["summary"],
+        "ai_accepted_count": len(ai_review_all_clear["field_reviews"]),
+        "needs_human_review_count": 0,
+        "blocked_count": 0,
+        "unknown_count": 0,
+    }
+    for field_review in ai_review_all_clear["field_reviews"]:
+        field_review["decision"] = "ai_accepted"
+        field_review.pop("required_human_action", None)
+    validation_error_report = build_status_report_from_artifacts(
+        candidate_bundle=candidate_bundle,
+        validation_report=validation_error_ai_accepted,
+        ai_review=ai_review_all_clear,
+    )
+    assert validation_error_report["summary"]["status"] == "blocked"
+    assert validation_error_report["summary"]["blocked_count"] >= 1
+    assert "/products/0/benefits/0" in {blocker["path"] for blocker in validation_error_report["blockers"]}
+
+    needs_human_review_report = dict(status_report)
+    needs_human_review_report["summary"] = {
+        **status_report["summary"],
+        "status": "needs_human_review",
+        "model_ready": False,
+        "unsupported_document_count": 0,
+        "needs_human_review_count": 1,
+        "blocked_count": 0,
+    }
+    validate_status_report_document(needs_human_review_report)
+
+    rebuilt_json = tmp_path / "rebuilt_status.json"
+    rebuilt_md = tmp_path / "rebuilt_status.md"
+    status_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "status",
+            "--candidate",
+            str(out_dir / "candidate.json"),
+            "--validation",
+            str(out_dir / "validation_report.json"),
+            "--ai-review",
+            str(out_dir / "ai_review.json"),
+            "--out-json",
+            str(rebuilt_json),
+            "--out-md",
+            str(rebuilt_md),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(status_result.stdout)["ok"] is True
+    validate_status_report_document(json.loads(rebuilt_json.read_text(encoding="utf-8")))
+    assert rebuilt_md.read_text(encoding="utf-8").endswith("\n")
+
+
+def test_cli_status_reviewed_missing_file_reports_json_error(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "status",
+            "--reviewed",
+            str(tmp_path / "missing-reviewed.json"),
+            "--out-json",
+            str(tmp_path / "status.json"),
+            "--out-md",
+            str(tmp_path / "status.md"),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "could not read reviewed product" in payload["error"]

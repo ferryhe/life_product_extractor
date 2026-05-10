@@ -51,6 +51,15 @@ from .sections import (
     sectionize_fixture_manifest_from_path,
     validate_sections_document,
 )
+from .orchestration import render_status_report_markdown, run_pipeline_from_path
+from .status import (
+    StatusContractError,
+    build_status_report_from_artifact_paths,
+    build_status_report_from_artifacts,
+    build_status_report_from_reviewed,
+    build_status_report_from_reviewed_path,
+    validate_status_report_document,
+)
 
 __all__ = [
     "ALLOWED_AUTHORITY_LEVELS",
@@ -64,6 +73,7 @@ __all__ = [
     "RoutingContractError",
     "SectionContractError",
     "SourceCatalogError",
+    "StatusContractError",
     "build_fixture_bundle",
     "build_fixture_bundle_from_paths",
     "apply_review_decisions",
@@ -91,6 +101,13 @@ __all__ = [
     "validate_fixture_manifest_document",
     "validate_source_catalog",
     "validate_validation_report_document",
+    "render_status_report_markdown",
+    "run_pipeline_from_path",
+    "build_status_report_from_artifact_paths",
+    "build_status_report_from_artifacts",
+    "build_status_report_from_reviewed",
+    "build_status_report_from_reviewed_path",
+    "validate_status_report_document",
     "sectionize_fixture_manifest",
     "sectionize_fixture_manifest_from_path",
 ]
