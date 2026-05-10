@@ -19,6 +19,20 @@ Current implemented CLI slices:
 - `life-extract status --reviewed ... --out-json status_report.json --out-md status_report.md`
 - `life-extract learn propose --reviewed reviewed_a.json reviewed_b.json --out skill_improvement_candidates.json`
 
+API usage is available through the optional FastAPI wrapper over the same service layer as the CLI:
+
+```bash
+pip install '.[api]'
+```
+
+```python
+from life_product_extractor.api import create_app
+
+app = create_app()
+```
+
+The API exposes `/v1/runs/*` endpoints for classify, sectionize, extract, validate, AI review, review bundle, review apply, status, full run orchestration, and learning proposal requests.
+
 Learning proposals are proposed-only artifacts for maintainer review; they summarize recurring corrections across reviewed runs, do not mutate active skill packs, and require regression fixtures before activation.
 
 `sections_structured.jsonl` is a JSONL artifact with one structured document record per line. Each record preserves deterministic `section_id` values, heading hierarchy, Markdown line ranges, HTML-escaped `source_quote` strings, curated-source provenance, and any detected `table_artifacts`.
