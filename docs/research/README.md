@@ -1,6 +1,6 @@
 # Research Notes
 
-This directory records early domain and architecture research before implementation PRs are cut. The goal is to freeze a practical extraction taxonomy first, so later CLI/API/schema work has a stable target.
+This directory records the domain and architecture research that shaped the implemented MVP pipeline. The notes are still useful as design rationale, even though the CLI/API/schema slices described in the roadmap have now been implemented in code.
 
 Current notes:
 
@@ -9,9 +9,10 @@ Current notes:
 3. `architecture-and-pr-roadmap.md` — CLI/API architecture, AI review flow, skill-pack lifecycle, and staged PR plan.
 4. `manulife-real-test-pr-plan.md` — Manulife real-product source catalog, fixture tiers, and implementation PR sequence grounded in real products.
 
-Working assumptions:
+Working assumptions that remain active in the implementation:
 
 - Markdown source plus manifest is the canonical input contract for this repo.
 - Candidate/reviewed JSON and status reports are the canonical output contracts.
 - HTML review bundles are an interaction layer only; downstream systems must not parse HTML as product data.
 - AI review should reduce human review volume by classifying fields into accepted/needs-human/blocked buckets, but must not silently finalize uncertain or unsupported fields.
+- Skill improvement proposals are maintainer-reviewed artifacts and do not automatically mutate active extraction/review behavior.
