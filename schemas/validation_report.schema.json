@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferryhe.github.io/life_product_extractor/schemas/validation_report.schema.json",
+  "title": "ValidationReport",
+  "type": "object",
+  "required": ["schema_version", "run_id", "candidate_fixture_set_id", "candidate_digest", "validator", "summary", "issues"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "0.1" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "candidate_fixture_set_id": { "type": "string", "minLength": 1 },
+    "candidate_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "validator": {
+      "type": "object",
+      "required": ["type", "version"],
+      "properties": {
+        "type": { "type": "string", "enum": ["deterministic"] },
+        "version": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": ["status", "error_count", "warning_count", "needs_human_review_count", "blocked_count"],
+      "properties": {
+        "status": { "type": "string", "enum": ["valid", "valid_with_warnings", "blocked"] },
+        "error_count": { "type": "integer", "minimum": 0 },
+        "warning_count": { "type": "integer", "minimum": 0 },
+        "needs_human_review_count": { "type": "integer", "minimum": 0 },
+        "blocked_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "issues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "required": ["path", "severity", "check", "message", "review_decision", "materiality"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+        "check": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "review_decision": {
+          "type": "string",
+          "enum": ["ai_accepted", "needs_human_review", "blocked", "not_applicable", "unknown"]
+        },
+        "materiality": { "type": "string", "enum": ["low", "medium", "high"] }
+      },
+      "additionalProperties": true
+    }
+  }
+}
