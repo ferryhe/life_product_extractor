@@ -242,6 +242,269 @@ def test_validate_sections_document_rejects_duplicate_section_ids() -> None:
         validate_sections_document(document)
 
 
+def test_validate_sections_document_rejects_unknown_declared_table_artifact_id() -> None:
+    document = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "document_id": "sample_fixture",
+        "source_catalog_id": "sample_source",
+        "product_name": "Sample product",
+        "document_role": "product_marketing_page",
+        "source_type": "html_page_excerpt",
+        "source_url": "https://example.com/product",
+        "markdown_path": "documents/sample.md",
+        "sectionization_strategy": {
+            "deterministic": True,
+            "html_escaped_quotes": True,
+            "low_value_labeling": True,
+            "table_artifacts_enabled": True,
+        },
+        "source_provenance": {
+            "raw_line_count": 4,
+            "selected_line_numbers": [1, 2, 3, 4],
+            "omitted_line_ranges": [],
+        },
+        "sections": [
+            {
+                "section_id": "sample_fixture-sec-0001-one",
+                "heading": {"text": "One", "level": 1},
+                "heading_path": ["One"],
+                "line_start": 1,
+                "line_end": 4,
+                "body_line_start": 2,
+                "body_line_end": 4,
+                "content_types": ["paragraph"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": ["missing-table"],
+                "source_quote": "# One\nBody",
+            }
+        ],
+        "table_artifacts": [],
+    }
+
+    with pytest.raises(SectionContractError, match="references unknown table_artifact_ids"):
+        validate_sections_document(document)
+
+
+def test_validate_sections_document_rejects_missing_reverse_table_reference() -> None:
+    document = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "document_id": "sample_fixture",
+        "source_catalog_id": "sample_source",
+        "product_name": "Sample product",
+        "document_role": "product_marketing_page",
+        "source_type": "html_page_excerpt",
+        "source_url": "https://example.com/product",
+        "markdown_path": "documents/sample.md",
+        "sectionization_strategy": {
+            "deterministic": True,
+            "html_escaped_quotes": True,
+            "low_value_labeling": True,
+            "table_artifacts_enabled": True,
+        },
+        "source_provenance": {
+            "raw_line_count": 5,
+            "selected_line_numbers": [1, 2, 3, 4, 5],
+            "omitted_line_ranges": [],
+        },
+        "sections": [
+            {
+                "section_id": "sample_fixture-sec-0001-one",
+                "heading": {"text": "One", "level": 1},
+                "heading_path": ["One"],
+                "line_start": 1,
+                "line_end": 5,
+                "body_line_start": 2,
+                "body_line_end": 5,
+                "content_types": ["paragraph", "table"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": [],
+                "source_quote": "# One\nBody\n| A | B |\n| - | - |",
+            }
+        ],
+        "table_artifacts": [
+            {
+                "table_id": "sample_fixture-table-0003-table",
+                "section_id": "sample_fixture-sec-0001-one",
+                "artifact_type": "markdown_table",
+                "line_start": 3,
+                "line_end": 4,
+                "source_quote": "| A | B |\n| - | - |",
+                "rows": [["A", "B"]],
+            }
+        ],
+    }
+
+    with pytest.raises(SectionContractError, match="missing referenced table_artifact_ids"):
+        validate_sections_document(document)
+
+
+def test_validate_sections_document_rejects_cross_section_table_reference() -> None:
+    document = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "document_id": "sample_fixture",
+        "source_catalog_id": "sample_source",
+        "product_name": "Sample product",
+        "document_role": "product_marketing_page",
+        "source_type": "html_page_excerpt",
+        "source_url": "https://example.com/product",
+        "markdown_path": "documents/sample.md",
+        "sectionization_strategy": {
+            "deterministic": True,
+            "html_escaped_quotes": True,
+            "low_value_labeling": True,
+            "table_artifacts_enabled": True,
+        },
+        "source_provenance": {
+            "raw_line_count": 8,
+            "selected_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8],
+            "omitted_line_ranges": [],
+        },
+        "sections": [
+            {
+                "section_id": "sample_fixture-sec-0001-one",
+                "heading": {"text": "One", "level": 1},
+                "heading_path": ["One"],
+                "line_start": 1,
+                "line_end": 4,
+                "body_line_start": 2,
+                "body_line_end": 4,
+                "content_types": ["paragraph"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": ["sample_fixture-table-0006-table"],
+                "source_quote": "# One\nBody",
+            },
+            {
+                "section_id": "sample_fixture-sec-0005-two",
+                "heading": {"text": "Two", "level": 1},
+                "heading_path": ["Two"],
+                "line_start": 5,
+                "line_end": 8,
+                "body_line_start": 6,
+                "body_line_end": 8,
+                "content_types": ["table"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": ["sample_fixture-table-0006-table"],
+                "source_quote": "# Two\n| A | B |\n| - | - |",
+            },
+        ],
+        "table_artifacts": [
+            {
+                "table_id": "sample_fixture-table-0006-table",
+                "section_id": "sample_fixture-sec-0005-two",
+                "artifact_type": "markdown_table",
+                "line_start": 6,
+                "line_end": 7,
+                "source_quote": "| A | B |\n| - | - |",
+                "rows": [["A", "B"]],
+            }
+        ],
+    }
+
+    with pytest.raises(SectionContractError, match="owned by another section"):
+        validate_sections_document(document)
+
+
+def test_validate_sections_document_rejects_table_artifact_range_outside_section() -> None:
+    document = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "document_id": "sample_fixture",
+        "source_catalog_id": "sample_source",
+        "product_name": "Sample product",
+        "document_role": "product_marketing_page",
+        "source_type": "html_page_excerpt",
+        "source_url": "https://example.com/product",
+        "markdown_path": "documents/sample.md",
+        "sectionization_strategy": {
+            "deterministic": True,
+            "html_escaped_quotes": True,
+            "low_value_labeling": True,
+            "table_artifacts_enabled": True,
+        },
+        "source_provenance": {
+            "raw_line_count": 6,
+            "selected_line_numbers": [1, 2, 3, 4, 5, 6],
+            "omitted_line_ranges": [],
+        },
+        "sections": [
+            {
+                "section_id": "sample_fixture-sec-0001-one",
+                "heading": {"text": "One", "level": 1},
+                "heading_path": ["One"],
+                "line_start": 1,
+                "line_end": 4,
+                "body_line_start": 2,
+                "body_line_end": 4,
+                "content_types": ["paragraph", "table"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": ["sample_fixture-table-0005-table"],
+                "source_quote": "# One\nBody",
+            }
+        ],
+        "table_artifacts": [
+            {
+                "table_id": "sample_fixture-table-0005-table",
+                "section_id": "sample_fixture-sec-0001-one",
+                "artifact_type": "markdown_table",
+                "line_start": 5,
+                "line_end": 6,
+                "source_quote": "| A | B |\n| - | - |",
+                "rows": [["A", "B"]],
+            }
+        ],
+    }
+
+    with pytest.raises(SectionContractError, match="must stay within referenced section line range"):
+        validate_sections_document(document)
+
+
+def test_validate_sections_document_rejects_raw_angle_brackets_in_source_quote() -> None:
+    document = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "document_id": "sample_fixture",
+        "source_catalog_id": "sample_source",
+        "product_name": "Sample product",
+        "document_role": "product_marketing_page",
+        "source_type": "html_page_excerpt",
+        "source_url": "https://example.com/product",
+        "markdown_path": "documents/sample.md",
+        "sectionization_strategy": {
+            "deterministic": True,
+            "html_escaped_quotes": True,
+            "low_value_labeling": True,
+            "table_artifacts_enabled": True,
+        },
+        "source_provenance": {
+            "raw_line_count": 2,
+            "selected_line_numbers": [1, 2],
+            "omitted_line_ranges": [],
+        },
+        "sections": [
+            {
+                "section_id": "sample_fixture-sec-0001-one",
+                "heading": {"text": "One", "level": 1},
+                "heading_path": ["One"],
+                "line_start": 1,
+                "line_end": 2,
+                "body_line_start": 2,
+                "body_line_end": 2,
+                "content_types": ["paragraph"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": [],
+                "source_quote": "# One\n<unsafe>",
+            }
+        ],
+        "table_artifacts": [],
+    }
+
+    with pytest.raises(SectionContractError, match="sections_structured.schema.json"):
+        validate_sections_document(document)
+
+
 def test_load_sections_jsonl_validates_each_line(tmp_path: Path) -> None:
     manifest = load_fixture_manifest_document(CANONICAL_FIXTURE_DIR / "manifest.json")
     sectionized = sectionize_fixture_manifest(manifest, base_dir=CANONICAL_FIXTURE_DIR)

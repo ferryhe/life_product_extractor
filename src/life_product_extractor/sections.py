@@ -126,29 +126,61 @@ def _validate_sections_semantics(document: Mapping[str, Any]) -> None:
     sections = document["sections"]
     section_ids: set[str] = set()
     table_ids: set[str] = set()
+    section_ranges: dict[str, tuple[int, int]] = {}
+    declared_table_refs: dict[str, set[str]] = {}
+    table_owners: dict[str, str] = {}
 
     for section in sections:
         if section["section_id"] in section_ids:
             raise SectionContractError(f"{document['document_id']}: duplicate section_id {section['section_id']!r}")
         section_ids.add(section["section_id"])
+        section_ranges[section["section_id"]] = (int(section["line_start"]), int(section["line_end"]))
+        declared_table_refs[section["section_id"]] = set(str(table_id) for table_id in section["table_artifact_ids"])
         if int(section["line_start"]) > int(section["line_end"]):
             raise SectionContractError(f"{section['section_id']}: line_start must be <= line_end")
         if int(section["body_line_start"]) > int(section["body_line_end"]):
             raise SectionContractError(f"{section['section_id']}: body_line_start must be <= body_line_end")
         if int(section["body_line_start"]) < int(section["line_start"]) or int(section["body_line_end"]) > int(section["line_end"]):
             raise SectionContractError(f"{section['section_id']}: body_line range must stay within section line range")
+        _validate_escaped_quote(section["source_quote"], owner=section["section_id"])
 
     valid_section_ids = {section["section_id"] for section in sections}
+    seen_table_refs: dict[str, set[str]] = {section_id: set() for section_id in valid_section_ids}
     for artifact in document["table_artifacts"]:
         if artifact["table_id"] in table_ids:
             raise SectionContractError(f"{document['document_id']}: duplicate table_id {artifact['table_id']!r}")
         table_ids.add(artifact["table_id"])
+        table_owners[str(artifact["table_id"])] = str(artifact["section_id"])
         if artifact["section_id"] not in valid_section_ids:
             raise SectionContractError(
                 f"{document['document_id']}: table artifact {artifact['table_id']!r} references unknown section_id"
             )
         if int(artifact["line_start"]) > int(artifact["line_end"]):
             raise SectionContractError(f"{artifact['table_id']}: line_start must be <= line_end")
+        section_line_start, section_line_end = section_ranges[artifact["section_id"]]
+        if int(artifact["line_start"]) < section_line_start or int(artifact["line_end"]) > section_line_end:
+            raise SectionContractError(
+                f"{artifact['table_id']}: table artifact line range must stay within referenced section line range"
+            )
+        _validate_escaped_quote(artifact["source_quote"], owner=artifact["table_id"])
+        seen_table_refs[artifact["section_id"]].add(str(artifact["table_id"]))
+
+    for section_id, table_artifact_ids in declared_table_refs.items():
+        unknown_table_ids = sorted(table_id for table_id in table_artifact_ids if table_id not in table_ids)
+        if unknown_table_ids:
+            raise SectionContractError(f"{section_id}: references unknown table_artifact_ids {unknown_table_ids!r}")
+        cross_section_table_ids = sorted(
+            table_id for table_id in table_artifact_ids if table_owners.get(table_id) not in {None, section_id}
+        )
+        if cross_section_table_ids:
+            raise SectionContractError(
+                f"{section_id}: references table_artifact_ids owned by another section {cross_section_table_ids!r}"
+            )
+        missing_table_ids = sorted(seen_table_refs[section_id] - table_artifact_ids)
+        if missing_table_ids:
+            raise SectionContractError(
+                f"{section_id}: missing referenced table_artifact_ids for artifacts {missing_table_ids!r}"
+            )
 
 
 def _scan_blocks(lines: Sequence[str]) -> list[dict[str, Any]]:
@@ -416,6 +448,11 @@ def _is_pipe_table_line(line: str) -> bool:
 
 def _escape_quote(lines: Sequence[str]) -> str:
     return html.escape("\n".join(lines), quote=False)
+
+
+def _validate_escaped_quote(source_quote: str, *, owner: str) -> None:
+    if "<" in source_quote or ">" in source_quote:
+        raise SectionContractError(f"{owner}: source_quote must not contain raw angle brackets")
 
 
 def _section_id(*, document_id: str, line_start: int, heading_path: Sequence[str]) -> str:

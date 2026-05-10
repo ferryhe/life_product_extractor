@@ -157,7 +157,7 @@
           "type": "string",
           "minLength": 1,
           "allOf": [
-            { "not": { "pattern": "<[^>]+>" } }
+            { "not": { "pattern": "[<>]" } }
           ]
         }
       },
@@ -186,7 +186,7 @@
           "type": "string",
           "minLength": 1,
           "allOf": [
-            { "not": { "pattern": "<[^>]+>" } }
+            { "not": { "pattern": "[<>]" } }
           ]
         },
         "rows": {
