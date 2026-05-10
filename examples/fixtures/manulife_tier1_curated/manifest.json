@@ -180,7 +180,7 @@
     {
       "fixture_id": "manulife_universal_life_investment_accounts",
       "source_catalog_id": "manulife_ul_investment_account_table",
-      "product_name": "Manulife UL investment account PDF/API output",
+      "product_name": "Manulife Universal Life",
       "region_family": "north_america",
       "jurisdiction": "CA",
       "product_class_primary": "ul_iul",

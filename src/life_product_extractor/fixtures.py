@@ -64,6 +64,7 @@ def validate_fixture_manifest_document(manifest: Mapping[str, Any], *, base_dir:
     seen_fixture_ids: set[str] = set()
     seen_markdown_paths: set[str] = set()
     seen_catalog_ids: set[str] = set()
+    documents_by_fixture_id: dict[str, Mapping[str, Any]] = {}
 
     manifest_base_dir = Path(base_dir) if base_dir is not None else None
     for index, document in enumerate(documents):
@@ -77,6 +78,7 @@ def validate_fixture_manifest_document(manifest: Mapping[str, Any], *, base_dir:
         seen_fixture_ids.add(fixture_id)
         seen_markdown_paths.add(markdown_path)
         seen_catalog_ids.add(document["source_catalog_id"])
+        documents_by_fixture_id[fixture_id] = document
 
         selected_lines = document["provenance"]["selected_line_numbers"]
         if selected_lines != sorted(selected_lines):
@@ -109,7 +111,13 @@ def validate_fixture_manifest_document(manifest: Mapping[str, Any], *, base_dir:
             if len(markdown_bytes) != document["byte_count"]:
                 raise FixtureContractError(f"{label}: byte_count does not match markdown file contents")
 
-    for index, scenario in enumerate(manifest["paired_source_scenarios"]):
+    scenarios = manifest["paired_source_scenarios"]
+    if not any(scenario["relation"] in {"known_overlap", "potentially_contradictory"} for scenario in scenarios):
+        raise FixtureContractError(
+            "paired_source_scenarios must include at least one known_overlap or potentially_contradictory scenario"
+        )
+
+    for index, scenario in enumerate(scenarios):
         label = scenario.get("scenario_id") or f"paired_source_scenarios[{index}]"
         missing_fixtures = sorted(set(scenario["fixture_ids"]) - seen_fixture_ids)
         if missing_fixtures:
@@ -117,6 +125,15 @@ def validate_fixture_manifest_document(manifest: Mapping[str, Any], *, base_dir:
         missing_sources = sorted(set(scenario["source_catalog_ids"]) - seen_catalog_ids)
         if missing_sources:
             raise FixtureContractError(f"{label}: unknown source_catalog_ids referenced: {', '.join(missing_sources)}")
+
+        scenario_documents = [documents_by_fixture_id[fixture_id] for fixture_id in scenario["fixture_ids"]]
+        document_product_names = {document["product_name"] for document in scenario_documents}
+        if len(document_product_names) != 1 or scenario["product_name"] not in document_product_names:
+            raise FixtureContractError(f"{label}: fixture_ids must reference the same product_name as the scenario")
+
+        document_source_ids = {document["source_catalog_id"] for document in scenario_documents}
+        if set(scenario["source_catalog_ids"]) != document_source_ids:
+            raise FixtureContractError(f"{label}: source_catalog_ids must exactly match the referenced fixture sources")
 
 
 def build_fixture_bundle(
@@ -133,15 +150,17 @@ def build_fixture_bundle(
 
     fixture_set_id = spec.get("fixture_set_id")
     documents_spec = spec.get("documents")
-    scenarios_spec = spec.get("paired_source_scenarios", [])
+    scenarios_spec = spec.get("paired_source_scenarios")
     if not isinstance(fixture_set_id, str) or not fixture_set_id:
         raise FixtureContractError("fixture builder spec must include non-empty fixture_set_id")
     if not isinstance(documents_spec, list) or not documents_spec:
         raise FixtureContractError("fixture builder spec must include a non-empty documents list")
     if not all(isinstance(item, Mapping) for item in documents_spec):
         raise FixtureContractError("fixture builder spec documents must be mappings")
-    if not isinstance(scenarios_spec, list) or not all(isinstance(item, Mapping) for item in scenarios_spec):
-        raise FixtureContractError("fixture builder spec paired_source_scenarios must be a list of mappings")
+    if not isinstance(scenarios_spec, list) or not scenarios_spec or not all(
+        isinstance(item, Mapping) for item in scenarios_spec
+    ):
+        raise FixtureContractError("fixture builder spec paired_source_scenarios must be a non-empty list of mappings")
 
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

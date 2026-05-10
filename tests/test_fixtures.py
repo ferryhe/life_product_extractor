@@ -182,6 +182,42 @@ def test_validate_fixture_manifest_enforces_provenance_range_and_complement_sema
         validate_fixture_manifest_document(mutated, base_dir=CANONICAL_FIXTURE_DIR)
 
 
+@pytest.mark.parametrize(
+    ("mutator", "error_fragment"),
+    [
+        (
+            lambda manifest: manifest.__setitem__("paired_source_scenarios", []),
+            "does not match manifest.schema.json",
+        ),
+        (
+            lambda manifest: manifest["paired_source_scenarios"][0].__setitem__("relation", "complementary"),
+            "does not match manifest.schema.json",
+        ),
+        (
+            lambda manifest: manifest["paired_source_scenarios"][0].__setitem__(
+                "fixture_ids", ["family_term_life", "manulife_universal_life_page"]
+            ),
+            "fixture_ids must reference the same product_name as the scenario",
+        ),
+        (
+            lambda manifest: manifest["paired_source_scenarios"][0].__setitem__(
+                "source_catalog_ids", ["manulife_universal_life", "manulife_family_term_life"]
+            ),
+            "source_catalog_ids must exactly match the referenced fixture sources",
+        ),
+    ],
+)
+def test_validate_fixture_manifest_enforces_paired_source_contract(
+    mutator, error_fragment: str
+) -> None:
+    manifest = load_fixture_manifest_document(CANONICAL_FIXTURE_DIR / "manifest.json")
+    mutated = json.loads(json.dumps(manifest))
+    mutator(mutated)
+
+    with pytest.raises(FixtureContractError, match=error_fragment):
+        validate_fixture_manifest_document(mutated, base_dir=CANONICAL_FIXTURE_DIR)
+
+
 def _snapshot_directory(root: Path) -> dict[str, str]:
     snapshot: dict[str, str] = {}
     for path in sorted(root.rglob("*")):

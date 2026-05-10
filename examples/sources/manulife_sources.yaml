@@ -97,7 +97,7 @@ sources:
     test_value: Universal life plus program overlay; tests secondary tags.
 
   - id: manulife_ul_investment_account_table
-    product_name: Manulife UL investment account PDF/API output
+    product_name: Manulife Universal Life
     region_family: north_america
     jurisdiction: CA
     product_class_primary: ul_iul
