@@ -60,9 +60,12 @@ def build_skill_improvement_candidates_from_reviewed_runs(
             product = products[product_index]
             target_skillpack = _target_skillpack(product)
             finding = _finding_at_decision_path(product, path)
+            if finding is None:
+                raise LearningContractError(f"review_metadata decision path does not target a reviewed finding: {path}")
             finding_key = _finding_key(path, finding)
             scope = f"{path.split('/')[3]}/{finding_key}" if len(path.split("/")) >= 4 else finding_key
             change_type = _change_type_for_path(path, decision_value)
+            reviewer_note = _reviewer_note(decision, finding)
             evidence_run = {
                 "run_id": str(review_metadata["run_id"]),
                 "fixture_set_id": str(reviewed["fixture_set_id"]),
@@ -70,8 +73,8 @@ def build_skill_improvement_candidates_from_reviewed_runs(
                 "decision_path": path,
                 "decision": decision_value,
                 **_finding_provenance(product, finding),
-                **({"reviewer_note": str(decision["reviewer_note"])} if "reviewer_note" in decision else {}),
-                **({"source_quote": _source_quote(product, finding)} if finding is not None else {}),
+                **({"reviewer_note": reviewer_note} if reviewer_note else {}),
+                "source_quote": _source_quote(product, finding),
             }
             grouped.setdefault((target_skillpack, scope, decision_value, change_type), []).append(evidence_run)
 
@@ -247,6 +250,22 @@ def _finding_provenance(product: Mapping[str, Any], finding: Mapping[str, Any] |
         "evidence_refs": evidence_refs,
         "evidence_spans": evidence_spans,
     }
+
+
+def _reviewer_note(decision: Mapping[str, Any], finding: Mapping[str, Any]) -> str:
+    """Return reviewer note provenance from decision metadata or the reviewed finding.
+
+    Normal `review apply` output stores reviewer notes on reviewed findings while
+    `review_metadata.decisions_applied` records only the applied path and
+    decision. Prefer an explicit decision-level note when present, then fall
+    back to the finding note so learning proposals preserve CLI provenance.
+    """
+
+    for source in (decision, finding):
+        note = str(source.get("reviewer_note") or "").strip()
+        if note:
+            return note
+    return ""
 
 
 def _evidence_spans(product: Mapping[str, Any], evidence_refs: list[str]) -> list[dict[str, Any]]:

@@ -450,6 +450,8 @@ def test_build_skill_improvement_candidates_from_reviewed_is_proposed_only() -> 
     ]
     assert candidate["evidence_runs"][0]["decision_path"] == "/products/0/benefits/0"
     assert candidate["evidence_runs"][0]["source_quote"] == "The policy provides a death benefit."
+    assert candidate["evidence_runs"][0]["reviewer_note"] == "Confirmed death benefit wording."
+    assert "Confirmed death benefit wording." in candidate["proposed_change"]["rationale"]
     assert candidate["evidence_runs"][0]["confidence"] == 0.91
     assert candidate["evidence_runs"][0]["review_status"] == "ai_accepted"
     assert candidate["evidence_runs"][0]["evidence_spans"] == reviewed["products"][0]["evidence"]
@@ -489,6 +491,63 @@ def test_skill_improvement_candidates_do_not_merge_different_findings_by_array_p
     proposal = build_skill_improvement_candidates_from_reviewed_runs([reviewed, other_reviewed])
 
     assert proposal["summary"]["candidate_count"] == 0
+
+
+def test_skill_improvement_candidates_fall_back_to_finding_reviewer_note() -> None:
+    reviewed = {
+        "schema_version": "0.1",
+        "fixture_set_id": "fixture_set_a",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["fixture_set"],
+        },
+        "summary": {"product_count": 1, "supported_document_count": 1, "unsupported_document_count": 0},
+        "products": [_minimal_candidate()],
+        "unsupported_documents": [],
+        "review_metadata": {
+            "schema_version": "0.1",
+            "source": "review_decisions",
+            "run_id": "fixture_set_a-validation-v0-1",
+            "reviewer": "fixture-reviewer",
+            "decisions_applied": [{"path": "/products/0/benefits/0", "decision": "reviewed"}],
+        },
+    }
+    reviewed["products"][0]["benefits"][0]["reviewer_note"] = "Finding-level note from review apply."
+    recurring_reviewed = json.loads(json.dumps(reviewed))
+    recurring_reviewed["fixture_set_id"] = "fixture_set_b"
+    recurring_reviewed["review_metadata"]["run_id"] = "fixture_set_b-validation-v0-1"
+
+    proposal = build_skill_improvement_candidates_from_reviewed_runs([reviewed, recurring_reviewed])
+
+    [candidate] = proposal["candidates"]
+    assert candidate["evidence_runs"][0]["reviewer_note"] == "Finding-level note from review apply."
+    assert "Finding-level note from review apply." in candidate["proposed_change"]["rationale"]
+
+
+def test_skill_improvement_candidates_reject_missing_reviewed_finding_path() -> None:
+    reviewed = {
+        "schema_version": "0.1",
+        "fixture_set_id": "fixture_set_a",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["fixture_set"],
+        },
+        "summary": {"product_count": 1, "supported_document_count": 1, "unsupported_document_count": 0},
+        "products": [_minimal_candidate()],
+        "unsupported_documents": [],
+        "review_metadata": {
+            "schema_version": "0.1",
+            "source": "review_decisions",
+            "run_id": "fixture_set_a-validation-v0-1",
+            "reviewer": "fixture-reviewer",
+            "decisions_applied": [{"path": "/products/0/benefits/9", "decision": "reviewed"}],
+        },
+    }
+
+    with pytest.raises(LearningContractError, match="decision path does not target a reviewed finding"):
+        build_skill_improvement_candidates_from_reviewed(reviewed)
 
 
 def test_build_skill_improvement_candidates_validates_reviewed_contract() -> None:
