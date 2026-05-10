@@ -97,7 +97,7 @@ sources:
     test_value: Universal life plus program overlay; tests secondary tags.
 
   - id: manulife_ul_investment_account_table
-    product_name: Manulife UL investment account PDF/API output
+    product_name: Manulife Universal Life
     region_family: north_america
     jurisdiction: CA
     product_class_primary: ul_iul
@@ -105,7 +105,7 @@ sources:
     document_role: investment_account_table
     authority_level: official_public
     allowed_as_fixture: true
-    fixture_tier: 2
+    fixture_tier: 1
     source_url: https://funds.manulife.ca/ul/api/pdf/ma808-ul100-en-us-904
     test_value: Investment-account/table extraction and table-artifact handling.
 
@@ -235,7 +235,7 @@ sources:
     document_role: product_guide
     authority_level: official_advisor
     allowed_as_fixture: true
-    fixture_tier: 2
+    fixture_tier: 1
     source_url: https://www.manulife.ca/content/dam/manulife-advisor-portal/documents/en/marketing-materials/insurance/livingcare/manulife-livingcare-product-guide.pdf
     test_value: Long-term-care triggers, benefit periods, eligibility, elimination periods.
 
@@ -248,7 +248,7 @@ sources:
     document_role: client_guide
     authority_level: official_advisor
     allowed_as_fixture: true
-    fixture_tier: 2
+    fixture_tier: 1
     source_url: https://advisor.manulife.ca/content/dam/manulife-advisor-portal/documents/en/marketing-materials/insurance/proguard-series/manulife-insurance-disability-insurance-client-guidee.pdf
     test_value: Disability definitions, elimination periods, benefit amount/duration, riders.
 

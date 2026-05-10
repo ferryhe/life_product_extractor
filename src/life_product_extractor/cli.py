@@ -5,8 +5,13 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from . import __version__
+from ._version import __version__
 from .catalog import SourceCatalogError, load_source_catalog_document, validate_source_catalog_document
+from .fixtures import (
+    DEFAULT_FIXTURE_SPEC_RESOURCE,
+    FixtureContractError,
+    build_fixture_bundle_from_paths,
+)
 from .resources import resource_path
 
 
@@ -31,6 +36,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate_catalog.set_defaults(func=_cmd_validate_catalog)
 
+    build_fixtures = subparsers.add_parser(
+        "build-fixtures",
+        help="Build deterministic curated Markdown fixtures and manifest from committed fixture data.",
+    )
+    build_fixtures.add_argument(
+        "--spec",
+        type=Path,
+        default=None,
+        help="Path to a fixture builder YAML spec. Defaults to the bundled Manulife fixture spec.",
+    )
+    build_fixtures.add_argument(
+        "--out-dir",
+        type=Path,
+        required=True,
+        help="Directory where the manifest and Markdown fixture files will be written.",
+    )
+    build_fixtures.add_argument(
+        "--catalog",
+        type=Path,
+        default=None,
+        help="Optional path to a source catalog YAML file. Defaults to the bundled Manulife source catalog.",
+    )
+    build_fixtures.set_defaults(func=_cmd_build_fixtures)
+
     return parser
 
 
@@ -42,7 +71,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         return int(args.func(args))
-    except SourceCatalogError as exc:
+    except (SourceCatalogError, FixtureContractError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
 
@@ -59,6 +88,29 @@ def _cmd_validate_catalog(args: argparse.Namespace) -> int:
         validate_source_catalog_document(catalog)
         print(json.dumps({"ok": True, "source_count": len(catalog["sources"])}, ensure_ascii=False, sort_keys=True))
         return 0
+
+
+def _cmd_build_fixtures(args: argparse.Namespace) -> int:
+    if args.spec is not None:
+        manifest = build_fixture_bundle_from_paths(spec_path=args.spec, output_dir=args.out_dir, catalog_path=args.catalog)
+    else:
+        with resource_path(DEFAULT_FIXTURE_SPEC_RESOURCE) as default_spec_path:
+            manifest = build_fixture_bundle_from_paths(spec_path=default_spec_path, output_dir=args.out_dir, catalog_path=args.catalog)
+
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "fixture_set_id": manifest["fixture_set_id"],
+                "document_count": len(manifest["documents"]),
+                "scenario_count": len(manifest["paired_source_scenarios"]),
+                "manifest_path": str(args.out_dir / "manifest.json"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
