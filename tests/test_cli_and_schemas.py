@@ -217,6 +217,7 @@ def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review
         "schema_version": "0.1",
         "run_id": "run_001",
         "candidate_fixture_set_id": "sample_fixture_set",
+        "candidate_digest": "sha256:" + "0" * 64,
         "reviewer": {"type": "ai", "skillpack": "north_america/traditional_life", "version": "0.1.0"},
         "summary": {"ai_accepted_count": 0, "needs_human_review_count": 0, "blocked_count": 0},
         "field_reviews": [],
@@ -227,6 +228,7 @@ def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review
         "schema_version": "0.1",
         "run_id": "run_001",
         "candidate_fixture_set_id": "sample_fixture_set",
+        "candidate_digest": "sha256:" + "0" * 64,
         "reviewer": {"type": "ai", "skillpack": "north_america/traditional_life", "version": "0.1.0"},
         "summary": {"ai_accepted_count": 0, "needs_human_review_count": 1, "blocked_count": 0},
         "field_reviews": [
@@ -245,6 +247,14 @@ def test_ai_review_schema_rejects_empty_field_reviews_and_accepts_minimal_review
     missing_fixture_set = dict(minimal_review)
     del missing_fixture_set["candidate_fixture_set_id"]
     assert any(list(error.path) == [] and "candidate_fixture_set_id" in error.message for error in validator.iter_errors(missing_fixture_set))
+
+    missing_candidate_digest = dict(minimal_review)
+    del missing_candidate_digest["candidate_digest"]
+    assert any(list(error.path) == [] and "candidate_digest" in error.message for error in validator.iter_errors(missing_candidate_digest))
+
+    invalid_candidate_digest = dict(minimal_review)
+    invalid_candidate_digest["candidate_digest"] = "not-a-digest"
+    assert any(list(error.path) == ["candidate_digest"] for error in validator.iter_errors(invalid_candidate_digest))
 
 
 def test_reviewed_product_composes_candidate_bundle_contract_and_requires_review_metadata() -> None:
@@ -277,10 +287,18 @@ def test_reviewed_product_composes_candidate_bundle_contract_and_requires_review
     reviewed_bundle["review_metadata"] = {
         "schema_version": "0.1",
         "source": "review_decisions",
+        "run_id": "fixture_set-validation-v0-1",
         "reviewer": "fixture-reviewer",
         "decisions_applied": [],
     }
     validator.validate(reviewed_bundle)
+
+    missing_run_id_bundle = json.loads(json.dumps(reviewed_bundle))
+    del missing_run_id_bundle["review_metadata"]["run_id"]
+    assert any(
+        list(error.path) == ["review_metadata"] and "run_id" in error.message
+        for error in validator.iter_errors(missing_run_id_bundle)
+    )
 
     invalid_bundle = reviewed_bundle | {"products": [{"bogus": True}]}
     assert any(list(error.path) == ["products", 0] for error in validator.iter_errors(invalid_bundle))
@@ -1178,6 +1196,15 @@ def test_cli_run_and_status_from_artifacts_pipeline(tmp_path: Path) -> None:
             candidate_bundle=candidate_bundle,
             validation_report=validation_report,
             ai_review=mismatched_ai_review,
+        )
+
+    mismatched_digest_ai_review = json.loads(json.dumps(ai_review))
+    mismatched_digest_ai_review["candidate_digest"] = "sha256:" + "0" * 64
+    with pytest.raises(StatusContractError, match="candidate_digest"):
+        build_status_report_from_artifacts(
+            candidate_bundle=candidate_bundle,
+            validation_report=validation_report,
+            ai_review=mismatched_digest_ai_review,
         )
 
     validation_error_ai_accepted = json.loads(json.dumps(validation_report))

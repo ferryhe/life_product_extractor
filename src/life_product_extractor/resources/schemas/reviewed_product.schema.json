@@ -10,7 +10,7 @@
       "properties": {
         "review_metadata": {
           "type": "object",
-          "required": ["schema_version", "source", "reviewer", "decisions_applied"],
+          "required": ["schema_version", "source", "run_id", "reviewer", "decisions_applied"],
           "properties": {
             "schema_version": { "const": "0.1" },
             "source": { "const": "review_decisions" },

@@ -3,11 +3,20 @@
   "$id": "https://ferryhe.github.io/life_product_extractor/schemas/ai_review.schema.json",
   "title": "AIReview",
   "type": "object",
-  "required": ["schema_version", "run_id", "candidate_fixture_set_id", "reviewer", "summary", "field_reviews"],
+  "required": [
+    "schema_version",
+    "run_id",
+    "candidate_fixture_set_id",
+    "candidate_digest",
+    "reviewer",
+    "summary",
+    "field_reviews"
+  ],
   "properties": {
     "schema_version": { "type": "string", "const": "0.1" },
     "run_id": { "type": "string", "minLength": 1 },
     "candidate_fixture_set_id": { "type": "string", "minLength": 1 },
+    "candidate_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "reviewer": {
       "type": "object",
       "required": ["type", "skillpack", "version"],
