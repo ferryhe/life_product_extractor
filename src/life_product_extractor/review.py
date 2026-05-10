@@ -21,7 +21,6 @@ REVIEW_DECISIONS: tuple[str, ...] = (
     "not_applicable",
     "unknown",
 )
-HUMAN_REVIEW_DECISIONS: tuple[str, ...] = ("reviewed", "needs_human_review", "blocked")
 HUMAN_REVIEWABLE_AI_DECISIONS: set[str] = {"needs_human_review", "blocked", "unknown"}
 
 
