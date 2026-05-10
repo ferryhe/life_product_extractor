@@ -65,6 +65,7 @@ def test_documented_schema_paths_exist() -> None:
 
 def test_packaged_resources_match_canonical_development_artifacts() -> None:
     assert resource_text("schemas/source_catalog.schema.json") == (SCHEMAS / "source_catalog.schema.json").read_text()
+    assert resource_text("schemas/manifest.schema.json") == (SCHEMAS / "manifest.schema.json").read_text()
     assert resource_text("examples/sources/manulife_sources.yaml") == (
         ROOT / "examples" / "sources" / "manulife_sources.yaml"
     ).read_text()
@@ -247,6 +248,30 @@ def test_cli_validates_default_catalog() -> None:
     assert payload["source_count"] >= 20
 
 
+def test_cli_builds_default_fixtures(tmp_path: Path) -> None:
+    out_dir = tmp_path / "fixtures"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "build-fixtures",
+            "--out-dir",
+            str(out_dir),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["document_count"] == 8
+    assert payload["scenario_count"] == 1
+    assert (out_dir / "manifest.json").exists()
+
+
 def test_installed_cli_validates_bundled_default_catalog_from_temp_cwd(tmp_path: Path) -> None:
     venv_dir = tmp_path / "venv"
     subprocess.run(
@@ -291,6 +316,55 @@ def test_installed_cli_validates_bundled_default_catalog_from_temp_cwd(tmp_path:
     payload = json.loads(result.stdout)
     assert payload["ok"] is True
     assert payload["source_count"] >= 20
+
+
+def test_installed_cli_builds_bundled_default_fixtures_from_temp_cwd(tmp_path: Path) -> None:
+    venv_dir = tmp_path / "venv"
+    subprocess.run(
+        [sys.executable, "-m", "venv", "--system-site-packages", str(venv_dir)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    bin_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
+    python_bin = bin_dir / ("python.exe" if os.name == "nt" else "python")
+    site_packages = subprocess.run(
+        [str(python_bin), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+    dependency_paths = [site.getusersitepackages(), sysconfig.get_paths()["purelib"]]
+    Path(site_packages, "_workspace_deps.pth").write_text("".join(f"{path}\n" for path in dependency_paths))
+    subprocess.run(
+        [str(python_bin), "-m", "pip", "install", "--no-build-isolation", "--no-deps", str(ROOT)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    work_dir = tmp_path / "outside-repo"
+    work_dir.mkdir()
+    out_dir = work_dir / "fixtures"
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    result = subprocess.run(
+        [str(python_bin), "-m", "life_product_extractor.cli", "build-fixtures", "--out-dir", str(out_dir)],
+        cwd=work_dir,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["document_count"] == 8
+    assert payload["scenario_count"] == 1
+    assert (out_dir / "manifest.json").exists()
 
 
 def test_cli_rejects_catalog_with_unsupported_top_level_key(tmp_path: Path) -> None:

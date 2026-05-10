@@ -1,0 +1,361 @@
+{
+  "schema_version": "0.1",
+  "fixture_set_id": "manulife_tier1_curated",
+  "source_catalog": {
+    "source": "bundled://examples/sources/manulife_sources.yaml",
+    "source_type": "bundled_resource"
+  },
+  "generated_by": {
+    "tool": "life_product_extractor.fixture_builder",
+    "version": "0.1.0"
+  },
+  "documents": [
+    {
+      "fixture_id": "family_term_life",
+      "source_catalog_id": "manulife_family_term_life",
+      "product_name": "Family Term Life Insurance Plan",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "traditional_life",
+      "product_class_secondary": [
+        "term_life"
+      ],
+      "document_role": "product_marketing_page",
+      "authority_level": "official_public",
+      "source_url": "https://www.manulife.ca/personal/insurance/our-products/life-insurance/term-life-insurance/family-term-life.html",
+      "retrieval_date": "2026-05-09",
+      "source_type": "html_page_excerpt",
+      "markdown_path": "documents/family_term_life.md",
+      "sha256": "4ab846bdbb4aaa379622391a98b715918461cd29d5cd8ad5c90fdb2e7a5c9425",
+      "byte_count": 287,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "7516f59fe0de37e3a9dddfd9a967efa09f91db9a942d08fc0355cada2ece8d1e",
+        "raw_line_count": 8,
+        "selected_line_numbers": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "omitted_line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 8,
+            "end": 8
+          }
+        ],
+        "selected_block_count": 3
+      }
+    },
+    {
+      "fixture_id": "lifecheque_critical_illness",
+      "source_catalog_id": "manulife_lifecheque_critical_illness",
+      "product_name": "Lifecheque critical illness insurance",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "traditional_life",
+      "product_class_secondary": [
+        "critical_illness"
+      ],
+      "document_role": "product_marketing_page",
+      "authority_level": "official_public",
+      "source_url": "https://www.manulife.ca/personal/insurance/our-products/health-insurance/critical-illness/lifecheque.html",
+      "retrieval_date": "2026-05-09",
+      "source_type": "html_page_excerpt",
+      "markdown_path": "documents/lifecheque_critical_illness.md",
+      "sha256": "e42b25407bcd3d9c269b6597b63de266690514e95c6fee45244eec831482d1b8",
+      "byte_count": 302,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "f1fd078326bc6db8101f0dd0cd329817f381cc515fd05138b6bcd42cc882b88d",
+        "raw_line_count": 7,
+        "selected_line_numbers": [
+          3,
+          4,
+          5,
+          6
+        ],
+        "omitted_line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 7,
+            "end": 7
+          }
+        ],
+        "selected_block_count": 3
+      }
+    },
+    {
+      "fixture_id": "livingcare_product_guide_excerpt",
+      "source_catalog_id": "manulife_livingcare_product_guide",
+      "product_name": "LivingCare product guide",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "ltc_di",
+      "product_class_secondary": [
+        "long_term_care"
+      ],
+      "document_role": "product_guide",
+      "authority_level": "official_advisor",
+      "source_url": "https://www.manulife.ca/content/dam/manulife-advisor-portal/documents/en/marketing-materials/insurance/livingcare/manulife-livingcare-product-guide.pdf",
+      "retrieval_date": "2026-05-09",
+      "source_type": "pdf_excerpt",
+      "markdown_path": "documents/livingcare_product_guide_excerpt.md",
+      "sha256": "b9c56b90b26de7d3add054be11b34e5fdea501d319f82edcfdee433df84ace30",
+      "byte_count": 352,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "d93061db4b669e0e2d442622cee45771be951be77f70455739a54dcaed7b69d3",
+        "raw_line_count": 7,
+        "selected_line_numbers": [
+          3,
+          4,
+          5,
+          6
+        ],
+        "omitted_line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 7,
+            "end": 7
+          }
+        ],
+        "selected_block_count": 3
+      }
+    },
+    {
+      "fixture_id": "manulife_par_whole_life",
+      "source_catalog_id": "manulife_par_whole_life",
+      "product_name": "Manulife Par Whole Life",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "participating_life",
+      "product_class_secondary": [
+        "whole_life",
+        "dividend"
+      ],
+      "document_role": "product_marketing_page",
+      "authority_level": "official_public",
+      "source_url": "https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/manulife-par-whole-life.html",
+      "retrieval_date": "2026-05-09",
+      "source_type": "html_page_excerpt",
+      "markdown_path": "documents/manulife_par_whole_life.md",
+      "sha256": "3aec2c8b4e6eeaa38d483864a394314853fbc968066c3ee2095b06c815cc9c02",
+      "byte_count": 310,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "5249343b054a56b42a0ec96d80d19c7dee53fc9464828b8dc3cf8fed33aead6d",
+        "raw_line_count": 7,
+        "selected_line_numbers": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "omitted_line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          }
+        ],
+        "selected_block_count": 3
+      }
+    },
+    {
+      "fixture_id": "manulife_universal_life_investment_accounts",
+      "source_catalog_id": "manulife_ul_investment_account_table",
+      "product_name": "Manulife UL investment account PDF/API output",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "ul_iul",
+      "product_class_secondary": [
+        "investment_account_table",
+        "supporting_table"
+      ],
+      "document_role": "investment_account_table",
+      "authority_level": "official_public",
+      "source_url": "https://funds.manulife.ca/ul/api/pdf/ma808-ul100-en-us-904",
+      "retrieval_date": "2026-05-09",
+      "source_type": "api_table_excerpt",
+      "markdown_path": "documents/manulife_universal_life_investment_accounts.md",
+      "sha256": "a81ed7d226f3db4e9584436028f5e2d8e4aeb59ee167176aef0c7a4808186c5a",
+      "byte_count": 303,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "0d07eb1e364a557a228c09f18633d7e6330a6ccf3b89a132fa074724546ab8da",
+        "raw_line_count": 8,
+        "selected_line_numbers": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "omitted_line_ranges": [],
+        "selected_block_count": 4
+      }
+    },
+    {
+      "fixture_id": "manulife_universal_life_page",
+      "source_catalog_id": "manulife_universal_life",
+      "product_name": "Manulife Universal Life",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "ul_iul",
+      "product_class_secondary": [
+        "universal_life"
+      ],
+      "document_role": "product_marketing_page",
+      "authority_level": "official_public",
+      "source_url": "https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/manulife-universal-life.html",
+      "retrieval_date": "2026-05-09",
+      "source_type": "html_page_excerpt",
+      "markdown_path": "documents/manulife_universal_life_page.md",
+      "sha256": "bcf29de8814e763082fce419ce43b8b39ead9a6c3521358a1af1cf66da2be75f",
+      "byte_count": 310,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "2fa256339c780417fde3c6785ce1fd6d78d5990fa63e6c75843766962f3b3467",
+        "raw_line_count": 8,
+        "selected_line_numbers": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "omitted_line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 8,
+            "end": 8
+          }
+        ],
+        "selected_block_count": 3
+      }
+    },
+    {
+      "fixture_id": "proguard_disability_client_guide_excerpt",
+      "source_catalog_id": "manulife_proguard_disability_client_guide",
+      "product_name": "Proguard Series disability insurance client guide",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "ltc_di",
+      "product_class_secondary": [
+        "disability"
+      ],
+      "document_role": "client_guide",
+      "authority_level": "official_advisor",
+      "source_url": "https://advisor.manulife.ca/content/dam/manulife-advisor-portal/documents/en/marketing-materials/insurance/proguard-series/manulife-insurance-disability-insurance-client-guidee.pdf",
+      "retrieval_date": "2026-05-09",
+      "source_type": "pdf_excerpt",
+      "markdown_path": "documents/proguard_disability_client_guide_excerpt.md",
+      "sha256": "4c4e5d785f5928751a996e37967f3a48c5bd357b22d98290967499593141ddc8",
+      "byte_count": 332,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "bbbc4bbf27c385cadf43654ee897836c8144257afd1341fc9f9a5b4614023764",
+        "raw_line_count": 7,
+        "selected_line_numbers": [
+          3,
+          4,
+          5,
+          6
+        ],
+        "omitted_line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 7,
+            "end": 7
+          }
+        ],
+        "selected_block_count": 3
+      }
+    },
+    {
+      "fixture_id": "synergy_combination_insurance",
+      "source_catalog_id": "manulife_synergy_combination_insurance",
+      "product_name": "Manulife Synergy combination insurance",
+      "region_family": "north_america",
+      "jurisdiction": "CA",
+      "product_class_primary": "traditional_life",
+      "product_class_secondary": [
+        "combination_product",
+        "critical_illness",
+        "disability"
+      ],
+      "document_role": "product_marketing_page",
+      "authority_level": "official_public",
+      "source_url": "https://www.manulife.ca/personal/insurance/our-products/manulife-synergy-combination-insurance.html",
+      "retrieval_date": "2026-05-09",
+      "source_type": "html_page_excerpt",
+      "markdown_path": "documents/synergy_combination_insurance.md",
+      "sha256": "71ae8eb9672b8f71e6a74b44bce3e47b96a31c626f63799e9050feb9e8907f44",
+      "byte_count": 344,
+      "provenance": {
+        "source_kind": "committed_curated_snippet",
+        "normalization": "curated_markdown_excerpt_v1",
+        "raw_text_sha256": "33975427856d9b69f8d88821dea355be4abda28769d94291df580fb718c4e16d",
+        "raw_line_count": 7,
+        "selected_line_numbers": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "omitted_line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          }
+        ],
+        "selected_block_count": 3
+      }
+    }
+  ],
+  "paired_source_scenarios": [
+    {
+      "scenario_id": "manulife_ul_overlap_and_availability_tension",
+      "product_name": "Manulife Universal Life",
+      "relation": "potentially_contradictory",
+      "fixture_ids": [
+        "manulife_universal_life_page",
+        "manulife_universal_life_investment_accounts"
+      ],
+      "source_catalog_ids": [
+        "manulife_universal_life",
+        "manulife_ul_investment_account_table"
+      ],
+      "rationale": "The product page describes broad investment-account flexibility, while the supporting account table adds policy-series-specific availability limits. Later extraction and review stages should treat the pair as overlapping same-product evidence that may require reconciliation rather than blindly preferring one source.\n"
+    }
+  ]
+}

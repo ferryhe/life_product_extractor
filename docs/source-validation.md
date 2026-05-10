@@ -44,3 +44,20 @@ If a mirror or educational source must be promoted into a fixture, the entry mus
 - `reviewed_at`
 
 This rule is enforced by tests so later implementation PRs cannot silently weaken the source policy.
+
+## PR B curated fixture contract
+
+PR B adds a deterministic curated-fixture builder driven by committed YAML data under `examples/fixtures/`.
+
+- `examples/fixtures/manulife_fixture_builder.yaml` is the canonical committed builder input.
+- `examples/fixtures/manulife_tier1_curated/` is the canonical generated Tier 1 Markdown fixture bundle.
+- `schemas/manifest.schema.json` is now the authoritative contract for curated Markdown fixture manifests.
+
+The builder is intentionally offline and deterministic:
+
+- it reads committed snippet lines only
+- it joins those snippets with source-catalog metadata from the bundled Manulife catalog
+- it writes relative Markdown paths, SHA-256 checksums, and trimming/provenance metadata
+- it records paired-source scenarios so later extraction and AI-review PRs can test overlap and contradiction handling without live fetches
+
+Tier 1 curated fixtures must stay small and provenance-aware. If a source is promoted into the committed fixture set, the corresponding source-catalog entry must remain `allowed_as_fixture: true` and `fixture_tier: 1` or higher.

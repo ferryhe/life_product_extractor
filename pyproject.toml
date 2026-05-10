@@ -33,6 +33,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 life_product_extractor = [
   "resources/schemas/*.json",
+  "resources/examples/fixtures/*.yaml",
   "resources/examples/sources/*.yaml",
 ]
 
