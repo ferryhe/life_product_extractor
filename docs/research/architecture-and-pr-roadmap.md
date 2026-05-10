@@ -44,7 +44,7 @@ life-extract validate --candidate out/candidate.json --out out/validation_report
 life-extract ai-review --candidate out/candidate.json --validation out/validation_report.json --out out/ai_review.json
 life-extract review build-html --candidate out/candidate.json --ai-review out/ai_review.json --out out/review.html
 life-extract review apply --candidate out/candidate.json --decisions out/review_decisions.json --out out/reviewed.json
-life-extract status --reviewed out/reviewed.json --out out/status_report.md
+life-extract status --reviewed out/reviewed.json --out-json out/status_report.json --out-md out/status_report.md
 life-extract learn propose --reviewed out/reviewed.json --out out/skill_improvement_candidates.json
 ```
 
@@ -134,10 +134,12 @@ schemas/
 skills/
   north_america/
     traditional_life/
+      skillpack.yaml
       extraction_profile.yaml
       ai_review_rubric.md
       normalization_rules.yaml
       human_review_policy.yaml
+      examples/README.md
 examples/
   north_america_traditional_life_minimal/
     input/
