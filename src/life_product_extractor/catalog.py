@@ -207,8 +207,6 @@ def _validate_taxonomy(entry: Mapping[str, Any], label: str) -> None:
     primary = entry["product_class_primary"]
     if primary not in ALLOWED_PRIMARY_CLASSES:
         raise SourceCatalogError(f"{label}: invalid product_class_primary {primary!r}")
-    if primary == "unknown_region":
-        raise SourceCatalogError(f"{label}: unknown_region is a region fallback, not a product class")
 
     secondary = entry["product_class_secondary"]
     if not isinstance(secondary, list) or not all(isinstance(tag, str) for tag in secondary):
