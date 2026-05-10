@@ -19,6 +19,13 @@ from .fixtures import (
     load_fixture_manifest_document,
     validate_fixture_manifest_document,
 )
+from .routing import (
+    RoutingContractError,
+    classify_fixture_manifest,
+    classify_fixture_manifest_from_path,
+    load_routing_document,
+    validate_routing_document,
+)
 
 __all__ = [
     "ALLOWED_AUTHORITY_LEVELS",
@@ -28,11 +35,16 @@ __all__ = [
     "ALLOWED_REGION_FAMILIES",
     "ALLOWED_SECONDARY_TAGS",
     "FixtureContractError",
+    "RoutingContractError",
     "SourceCatalogError",
     "build_fixture_bundle",
     "build_fixture_bundle_from_paths",
+    "classify_fixture_manifest",
+    "classify_fixture_manifest_from_path",
     "load_fixture_manifest_document",
+    "load_routing_document",
     "load_source_catalog",
+    "validate_routing_document",
     "validate_fixture_manifest_document",
     "validate_source_catalog",
 ]
