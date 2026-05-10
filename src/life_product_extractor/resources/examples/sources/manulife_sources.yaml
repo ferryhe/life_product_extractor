@@ -1,0 +1,318 @@
+# Manulife public source catalog
+#
+# This catalog is a Tier 0 grounding artifact for the staged implementation.
+# It records public source metadata and intended fixture eligibility; later PRs
+# may add small Markdown fixtures only when provenance and source policy allow.
+
+sources:
+  - id: manulife_family_term_life
+    product_name: Family Term Life Insurance Plan
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [term_life]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/term-life-insurance/family-term-life.html
+    test_value: Term product identity, death benefit, renewal/conversion/protection language.
+
+  - id: manulife_family_term_vitality_plus
+    product_name: Family Term with Vitality Plus
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [term_life, vitality]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/term-life-insurance/vitality-family-term-life.html
+    test_value: Same base term concepts plus Vitality program text.
+
+  - id: manulife_coverme_term_life
+    product_name: CoverMe Term Life
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [term_life, direct_to_consumer]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/term-life-insurance/coverme-term-life.html
+    test_value: Direct-to-consumer term-life wording.
+
+  - id: manulife_coverme_term_20_life
+    product_name: CoverMe Term 20 Life
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [term_life, direct_to_consumer]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/term-life-insurance/coverme-term-20-life.html
+    test_value: Term-duration normalization and issue/coverage limits if present.
+
+  - id: manulife_coverme_easy_issue_life
+    product_name: CoverMe Easy Issue Life
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [term_life, simplified_issue, direct_to_consumer]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/term-life-insurance/coverme-easy-issue-life.html
+    test_value: Simplified underwriting language and exclusions.
+
+  - id: manulife_universal_life
+    product_name: Manulife Universal Life
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: ul_iul
+    product_class_secondary: [universal_life]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/manulife-universal-life.html
+    test_value: Account value, charges, investment/account options, death benefit options.
+
+  - id: manulife_universal_life_vitality_plus
+    product_name: Manulife UL with Vitality Plus
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: ul_iul
+    product_class_secondary: [universal_life, vitality]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/manulife-universal-life-vitality.html
+    test_value: Universal life plus program overlay; tests secondary tags.
+
+  - id: manulife_ul_investment_account_table
+    product_name: Manulife UL investment account PDF/API output
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: ul_iul
+    product_class_secondary: [investment_account_table, supporting_table]
+    document_role: investment_account_table
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 2
+    source_url: https://funds.manulife.ca/ul/api/pdf/ma808-ul100-en-us-904
+    test_value: Investment-account/table extraction and table-artifact handling.
+
+  - id: manulife_par_whole_life
+    product_name: Manulife Par Whole Life
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: participating_life
+    product_class_secondary: [whole_life, dividend]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/manulife-par-whole-life.html
+    test_value: Participating/dividend language; guaranteed vs non-guaranteed distinction.
+
+  - id: manulife_par_vitality_plus
+    product_name: Manulife Par with Vitality Plus
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: participating_life
+    product_class_secondary: [whole_life, dividend, vitality]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/manulife-par-vitality.html
+    test_value: Participating life plus wellness-program overlay.
+
+  - id: manulife_guaranteed_issue_life
+    product_name: Manulife Guaranteed Issue Life
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [permanent_life, guaranteed_issue]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/manulife-guaranteed-issue-life.html
+    test_value: Guaranteed-issue underwriting and graded/limited benefit language if present.
+
+  - id: manulife_coverme_guaranteed_issue_life
+    product_name: CoverMe Guaranteed Issue Life
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [permanent_life, guaranteed_issue, direct_to_consumer]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/life-insurance/permanent-life-insurance/coverme-guaranteed-issue-life.html
+    test_value: Direct-to-consumer guaranteed issue language.
+
+  - id: manulife_par_client_guide_mirror
+    product_name: Manulife Par Client Guide
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: participating_life
+    product_class_secondary: [whole_life, dividend, mirror_discovery_only]
+    document_role: mirror_discovery_only
+    authority_level: third_party_mirror
+    allowed_as_fixture: false
+    fixture_tier: 0
+    source_url: https://cdn.heyzine.com/flip-book/pdf/13b7fb31ce140b350aec2783420072cb686f1599.pdf
+    test_value: Rich participating-life brochure; discovery only unless official source and rights are confirmed.
+
+  - id: manulife_synergy_combination_insurance
+    product_name: Manulife Synergy combination insurance
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [combination_product, critical_illness, disability]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/manulife-synergy-combination-insurance.html
+    test_value: Combined life, disability, and critical illness responsibilities.
+
+  - id: manulife_lifecheque_critical_illness
+    product_name: Lifecheque critical illness insurance
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [critical_illness]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/health-insurance/critical-illness/lifecheque.html
+    test_value: CI trigger definitions, covered conditions, survival/waiting-period language.
+
+  - id: manulife_lifecheque_basic
+    product_name: Lifecheque Basic
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [critical_illness, simplified_issue]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/health-insurance/critical-illness/lifecheque-basic.html
+    test_value: Simplified CI product variant.
+
+  - id: manulife_coverme_critical_illness
+    product_name: CoverMe critical illness
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: traditional_life
+    product_class_secondary: [critical_illness, direct_to_consumer]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/health-insurance/critical-illness/coverme.html
+    test_value: Consumer-facing CI wording.
+
+  - id: manulife_livingcare_product_guide
+    product_name: LivingCare product guide
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: ltc_di
+    product_class_secondary: [long_term_care]
+    document_role: product_guide
+    authority_level: official_advisor
+    allowed_as_fixture: true
+    fixture_tier: 2
+    source_url: https://www.manulife.ca/content/dam/manulife-advisor-portal/documents/en/marketing-materials/insurance/livingcare/manulife-livingcare-product-guide.pdf
+    test_value: Long-term-care triggers, benefit periods, eligibility, elimination periods.
+
+  - id: manulife_proguard_disability_client_guide
+    product_name: Proguard Series disability insurance client guide
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: ltc_di
+    product_class_secondary: [disability]
+    document_role: client_guide
+    authority_level: official_advisor
+    allowed_as_fixture: true
+    fixture_tier: 2
+    source_url: https://advisor.manulife.ca/content/dam/manulife-advisor-portal/documents/en/marketing-materials/insurance/proguard-series/manulife-insurance-disability-insurance-client-guidee.pdf
+    test_value: Disability definitions, elimination periods, benefit amount/duration, riders.
+
+  - id: manulife_personal_accident_insurance
+    product_name: Personal Accident Insurance
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: ltc_di
+    product_class_secondary: [accident, disability_adjacent]
+    document_role: product_marketing_page
+    authority_level: official_public
+    allowed_as_fixture: true
+    fixture_tier: 1
+    source_url: https://www.manulife.ca/personal/insurance/our-products/health-insurance/disability/personal-accident-insurance.html
+    test_value: Accident/disability-adjacent trigger wording.
+
+  - id: manulife_annuities_retirement_planning
+    product_name: Annuities for retirement planning
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: immediate_annuity
+    product_class_secondary: [educational_context, deferred_annuity_adjacent]
+    document_role: educational_page
+    authority_level: official_public
+    allowed_as_fixture: false
+    fixture_tier: 0
+    source_url: https://www.manulife.ca/personal/plan-and-learn/healthy-finances/saving/annuities-for-retirement-planning.html
+    test_value: Basic annuity concepts; discovery context, not product ground truth.
+
+  - id: manulife_annuity_brochure_mirror
+    product_name: Manulife annuities brochure
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: immediate_annuity
+    product_class_secondary: [mirror_discovery_only]
+    document_role: mirror_discovery_only
+    authority_level: third_party_mirror
+    allowed_as_fixture: false
+    fixture_tier: 0
+    source_url: https://lifeannuities.com/brochures/manulife-annuity-brochure.pdf
+    test_value: Discovery-only annuity payout options unless official source and rights are confirmed.
+
+  - id: manulife_gic_product_guide
+    product_name: Manulife Investments Guaranteed Interest Contract product guide
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: deferred_annuity
+    product_class_secondary: [gic_adjacent, investment_contract]
+    document_role: product_guide
+    authority_level: official_investment_affiliate
+    allowed_as_fixture: false
+    fixture_tier: 0
+    source_url: https://www.manulifeim.com/content/dam/mim-ca/landing-page/product/pdf/inv_gic_productguide.pdf
+    test_value: Adjacent guaranteed-interest/investment contract language.
+
+  - id: manulife_insurance_investments_facts
+    product_name: Insurance Investments - the facts
+    region_family: north_america
+    jurisdiction: CA
+    product_class_primary: deferred_annuity
+    product_class_secondary: [segregated_fund_adjacent, educational_context]
+    document_role: educational_page
+    authority_level: official_investment_affiliate
+    allowed_as_fixture: false
+    fixture_tier: 0
+    source_url: https://www.manulifeim.com/content/dam/mim-ca/landing-page/product/pdf/insurance-investments-the-facts-en.pdf
+    test_value: Insurance-investment framing and deferred accumulation context.

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferryhe.github.io/life_product_extractor/schemas/product_schema_v0_1.json",
+  "title": "CandidateProductV0_1Alias",
+  "$ref": "candidate_product.schema.json"
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferryhe.github.io/life_product_extractor/schemas/reviewed_product.schema.json",
+  "title": "ReviewedProductV0_1",
+  "allOf": [
+    { "$ref": "candidate_product.schema.json" },
+    {
+      "type": "object",
+      "required": ["review_metadata"],
+      "properties": {
+        "review_metadata": {
+          "type": "object",
+          "required": ["review_status", "reviewed_at", "decisions_applied"],
+          "properties": {
+            "review_status": { "type": "string", "enum": ["reviewed", "partially_reviewed", "blocked"] },
+            "reviewed_at": { "type": "string", "minLength": 1 },
+            "reviewer": { "type": "string" },
+            "decisions_applied": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["path", "decision"],
+                "properties": {
+                  "path": { "type": "string", "minLength": 1 },
+                  "decision": { "type": "string", "enum": ["accept", "reject", "edit", "needs_follow_up"] },
+                  "source_decision_id": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  ]
+}

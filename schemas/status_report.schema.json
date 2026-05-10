@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferryhe.github.io/life_product_extractor/schemas/status_report.schema.json",
+  "title": "StatusReport",
+  "type": "object",
+  "required": ["run_id", "status", "blockers"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["ready", "needs_human_review", "blocked"] },
+    "blockers": { "type": "array", "items": { "type": "object" } }
+  },
+  "additionalProperties": true
+}
