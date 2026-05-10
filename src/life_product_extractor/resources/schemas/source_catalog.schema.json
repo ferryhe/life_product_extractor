@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferryhe.github.io/life_product_extractor/schemas/source_catalog.schema.json",
+  "title": "SourceCatalog",
+  "type": "object",
+  "required": ["sources"],
+  "properties": {
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/source" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "secondaryTag": {
+      "type": "string",
+      "enum": ["accident", "adjacent_investment_context", "combination_product", "critical_illness", "deferred_annuity_adjacent", "direct_to_consumer", "disability", "disability_adjacent", "dividend", "educational_context", "gic_adjacent", "guaranteed_issue", "investment_account_table", "investment_contract", "long_term_care", "mirror_discovery_only", "permanent_life", "segregated_fund_adjacent", "simplified_issue", "supporting_table", "term_life", "universal_life", "vitality", "whole_life"]
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "id",
+        "product_name",
+        "region_family",
+        "jurisdiction",
+        "product_class_primary",
+        "product_class_secondary",
+        "document_role",
+        "authority_level",
+        "allowed_as_fixture",
+        "fixture_tier",
+        "source_url"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "product_name": { "type": "string", "minLength": 1 },
+        "region_family": { "type": "string", "enum": ["north_america"] },
+        "jurisdiction": { "type": "string", "enum": ["CA"] },
+        "product_class_primary": {
+          "type": "string",
+          "enum": ["traditional_life", "ltc_di", "ul_iul", "deferred_annuity", "immediate_annuity", "multi_state", "participating_life", "other"]
+        },
+        "product_class_secondary": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "document_role": {
+          "type": "string",
+          "enum": ["adjacent_context", "client_guide", "educational_page", "investment_account_table", "mirror_discovery_only", "product_guide", "product_marketing_page"]
+        },
+        "authority_level": {
+          "type": "string",
+          "enum": ["official_advisor", "official_investment_affiliate", "official_public", "third_party_mirror", "unknown"]
+        },
+        "allowed_as_fixture": { "type": "boolean" },
+        "fixture_tier": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "source_url": { "type": "string", "format": "uri" },
+        "test_value": { "type": "string" },
+        "experimental_secondary_tags": { "type": "boolean" },
+        "override_rationale": { "type": "string", "minLength": 1 },
+        "reviewed_by": { "type": "string", "minLength": 1 },
+        "reviewed_at": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "not": { "properties": { "experimental_secondary_tags": { "const": true } }, "required": ["experimental_secondary_tags"] } },
+          "then": { "properties": { "product_class_secondary": { "items": { "$ref": "#/$defs/secondaryTag" } } } }
+        },
+        {
+          "if": { "properties": { "fixture_tier": { "minimum": 1 } }, "required": ["fixture_tier"] },
+          "then": { "properties": { "allowed_as_fixture": { "const": true } } }
+        },
+        {
+          "if": {
+            "anyOf": [
+              { "properties": { "document_role": { "enum": ["adjacent_context", "educational_page", "mirror_discovery_only"] } }, "required": ["document_role"] },
+              { "properties": { "authority_level": { "enum": ["third_party_mirror", "unknown"] } }, "required": ["authority_level"] }
+            ],
+            "properties": { "allowed_as_fixture": { "const": true } },
+            "required": ["allowed_as_fixture"]
+          },
+          "then": { "required": ["override_rationale", "reviewed_by", "reviewed_at"] }
+        }
+      ],
+      "additionalProperties": true
+    }
+  }
+}

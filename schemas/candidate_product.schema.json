@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferryhe.github.io/life_product_extractor/schemas/candidate_product.schema.json",
+  "title": "CandidateProductV0_1",
+  "type": "object",
+  "required": ["schema_version", "product_identity", "decrements", "benefits", "evidence"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "product_identity": { "$ref": "#/$defs/productIdentity" },
+    "decrements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/auditedFinding" }
+    },
+    "benefits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/auditedFinding" }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/evidenceSpan" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "productIdentity": {
+      "type": "object",
+      "required": ["product_name", "region_family", "jurisdiction", "product_class_primary"],
+      "properties": {
+        "product_name": { "type": "string", "minLength": 1 },
+        "region_family": { "type": "string", "minLength": 1 },
+        "jurisdiction": { "type": "string", "minLength": 1 },
+        "product_class_primary": { "type": "string", "minLength": 1 },
+        "product_class_secondary": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "auditedFinding": {
+      "type": "object",
+      "required": ["id", "label", "evidence_refs", "confidence", "review_status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "review_status": { "type": "string", "enum": ["ai_accepted", "needs_human_review", "reviewed", "blocked"] }
+      },
+      "additionalProperties": true
+    },
+    "evidenceSpan": {
+      "type": "object",
+      "required": [
+        "id",
+        "source_id",
+        "document_id",
+        "section_id",
+        "line_start",
+        "line_end",
+        "span_start",
+        "span_end",
+        "quote"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "source_id": { "type": "string", "minLength": 1 },
+        "document_id": { "type": "string", "minLength": 1 },
+        "section_id": { "type": "string", "minLength": 1 },
+        "line_start": { "type": "integer", "minimum": 1 },
+        "line_end": { "type": "integer", "minimum": 1 },
+        "span_start": { "type": "integer", "minimum": 0 },
+        "span_end": { "type": "integer", "minimum": 0 },
+        "quote": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    }
+  }
+}
