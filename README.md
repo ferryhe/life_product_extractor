@@ -17,5 +17,8 @@ Current implemented CLI slices:
 - `life-extract review apply --candidate ... --decisions ... --out reviewed.json`
 - `life-extract run --manifest ... --out out/`
 - `life-extract status --reviewed ... --out-json status_report.json --out-md status_report.md`
+- `life-extract learn propose --reviewed reviewed_a.json reviewed_b.json --out skill_improvement_candidates.json`
+
+Learning proposals are proposed-only artifacts for maintainer review; they summarize recurring corrections across reviewed runs, do not mutate active skill packs, and require regression fixtures before activation.
 
 `sections_structured.jsonl` is a JSONL artifact with one structured document record per line. Each record preserves deterministic `section_id` values, heading hierarchy, Markdown line ranges, HTML-escaped `source_quote` strings, curated-source provenance, and any detected `table_artifacts`.

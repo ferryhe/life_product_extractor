@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferryhe.github.io/life_product_extractor/schemas/skill_improvement_candidates.schema.json",
+  "title": "SkillImprovementCandidatesV0_1",
+  "type": "object",
+  "required": ["schema_version", "run_id", "fixture_set_id", "source", "summary", "candidates"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "fixture_set_id": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "const": "reviewed_product" },
+    "summary": {
+      "type": "object",
+      "required": ["candidate_count", "target_skillpack_count", "requires_fixture_count", "auto_applied_count"],
+      "properties": {
+        "candidate_count": { "type": "integer", "minimum": 0 },
+        "target_skillpack_count": { "type": "integer", "minimum": 0 },
+        "requires_fixture_count": { "type": "integer", "minimum": 0 },
+        "auto_applied_count": { "type": "integer", "const": 0 }
+      },
+      "additionalProperties": true
+    },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/candidate" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "required": ["id", "target_skillpack", "evidence_runs", "proposed_change", "required_fixture"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^skill_candidate_[0-9]{3}$" },
+        "target_skillpack": { "type": "string", "pattern": "^[a-z_]+/[a-z_]+$" },
+        "evidence_runs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/evidenceRun" }
+        },
+        "proposed_change": {
+          "type": "object",
+          "required": ["change_type", "scope", "rationale", "status"],
+          "properties": {
+            "change_type": { "type": "string", "enum": ["extraction_rule", "normalization_rule", "ai_review_rubric", "human_review_policy", "fixture_gap"] },
+            "scope": { "type": "string", "minLength": 1 },
+            "rationale": { "type": "string", "minLength": 1 },
+            "status": { "type": "string", "const": "proposed_only" }
+          },
+          "additionalProperties": true
+        },
+        "required_fixture": {
+          "type": "object",
+          "required": ["fixture_set_id", "description", "must_fail_before_activation"],
+          "properties": {
+            "fixture_set_id": { "type": "string", "minLength": 1 },
+            "description": { "type": "string", "minLength": 1 },
+            "must_fail_before_activation": { "type": "boolean", "const": true }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "evidenceRun": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "fixture_set_id",
+        "product_id",
+        "decision_path",
+        "decision",
+        "finding_id",
+        "finding_label",
+        "confidence",
+        "review_status",
+        "evidence_refs",
+        "evidence_spans"
+      ],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "fixture_set_id": { "type": "string", "minLength": 1 },
+        "product_id": { "type": "string", "minLength": 1 },
+        "decision_path": { "type": "string", "pattern": "^/products/[0-9]+/(decrements|benefits|explicit_unknowns)/[0-9]+$" },
+        "decision": { "type": "string", "enum": ["reviewed", "needs_human_review", "blocked"] },
+        "finding_id": { "type": "string", "minLength": 1 },
+        "finding_label": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "review_status": { "type": "string", "enum": ["ai_accepted", "needs_human_review", "reviewed", "blocked"] },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "evidence_spans": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "source_id", "document_id", "section_id", "line_start", "line_end", "span_start", "span_end", "source_quote"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "source_id": { "type": "string", "minLength": 1 },
+              "document_id": { "type": "string", "minLength": 1 },
+              "section_id": { "type": "string", "minLength": 1 },
+              "line_start": { "type": "integer", "minimum": 1 },
+              "line_end": { "type": "integer", "minimum": 1 },
+              "span_start": { "type": "integer", "minimum": 0 },
+              "span_end": { "type": "integer", "minimum": 0 },
+              "source_quote": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": true
+          }
+        },
+        "reviewer_note": { "type": "string" },
+        "source_quote": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
