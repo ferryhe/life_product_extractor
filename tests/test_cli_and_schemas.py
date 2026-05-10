@@ -25,6 +25,7 @@ from life_product_extractor.catalog import (
 from life_product_extractor.fixtures import FixtureContractError
 from life_product_extractor.resources import resource_text
 from life_product_extractor.routing import validate_routing_document
+from life_product_extractor.sections import load_sections_jsonl, validate_sections_document
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMAS = ROOT / "schemas"
@@ -57,6 +58,7 @@ def test_documented_schema_paths_exist() -> None:
     documented_schema_paths = [
         "manifest.schema.json",
         "routing.schema.json",
+        "sections_structured.schema.json",
         "candidate_product.schema.json",
         "ai_review.schema.json",
         "review_decisions.schema.json",
@@ -71,6 +73,9 @@ def test_packaged_resources_match_canonical_development_artifacts() -> None:
     assert resource_text("schemas/source_catalog.schema.json") == (SCHEMAS / "source_catalog.schema.json").read_text()
     assert resource_text("schemas/manifest.schema.json") == (SCHEMAS / "manifest.schema.json").read_text()
     assert resource_text("schemas/routing.schema.json") == (SCHEMAS / "routing.schema.json").read_text()
+    assert resource_text("schemas/sections_structured.schema.json") == (
+        SCHEMAS / "sections_structured.schema.json"
+    ).read_text()
     assert resource_text("examples/sources/manulife_sources.yaml") == (
         ROOT / "examples" / "sources" / "manulife_sources.yaml"
     ).read_text()
@@ -209,6 +214,7 @@ def test_cli_help_works() -> None:
     assert "life-extract" in result.stdout
     assert "validate-catalog" in result.stdout
     assert "classify" in result.stdout
+    assert "sectionize" in result.stdout
 
 
 def test_cli_reports_missing_catalog_without_traceback() -> None:
@@ -276,6 +282,140 @@ def test_cli_builds_default_fixtures(tmp_path: Path) -> None:
     assert payload["document_count"] == 8
     assert payload["scenario_count"] == 1
     assert (out_dir / "manifest.json").exists()
+
+
+def test_sections_schema_accepts_minimal_document_artifact() -> None:
+    sections_document = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "document_id": "sample_fixture",
+        "source_catalog_id": "sample_source",
+        "product_name": "Sample product",
+        "document_role": "product_marketing_page",
+        "source_type": "html_page_excerpt",
+        "source_url": "https://example.com/product",
+        "markdown_path": "documents/sample.md",
+        "sectionization_strategy": {
+            "deterministic": True,
+            "html_escaped_quotes": True,
+            "low_value_labeling": True,
+            "table_artifacts_enabled": True,
+        },
+        "source_provenance": {
+            "raw_line_count": 6,
+            "selected_line_numbers": [1, 2, 3, 4],
+            "omitted_line_ranges": [{"start": 5, "end": 6}],
+        },
+        "sections": [
+            {
+                "section_id": "sample_fixture-sec-0001-sample-product",
+                "heading": {"text": "Sample product", "level": 1},
+                "heading_path": ["Sample product"],
+                "line_start": 1,
+                "line_end": 4,
+                "body_line_start": 3,
+                "body_line_end": 4,
+                "content_types": ["paragraph"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": [],
+                "source_quote": "# Sample product\n\nCore benefit text.",
+            }
+        ],
+        "table_artifacts": [],
+    }
+
+    validate_sections_document(sections_document)
+
+
+def test_sections_schema_rejects_raw_angle_brackets_in_section_and_table_quotes() -> None:
+    validator = _schema_validator("sections_structured.schema.json")
+    document = {
+        "schema_version": "0.1",
+        "fixture_set_id": "sample_fixture_set",
+        "document_id": "sample_fixture",
+        "source_catalog_id": "sample_source",
+        "product_name": "Sample product",
+        "document_role": "product_marketing_page",
+        "source_type": "html_page_excerpt",
+        "source_url": "https://example.com/product",
+        "markdown_path": "documents/sample.md",
+        "sectionization_strategy": {
+            "deterministic": True,
+            "html_escaped_quotes": True,
+            "low_value_labeling": True,
+            "table_artifacts_enabled": True,
+        },
+        "source_provenance": {
+            "raw_line_count": 4,
+            "selected_line_numbers": [1, 2, 3, 4],
+            "omitted_line_ranges": [],
+        },
+        "sections": [
+            {
+                "section_id": "sample_fixture-sec-0001-sample-product",
+                "heading": {"text": "Sample product", "level": 1},
+                "heading_path": ["Sample product"],
+                "line_start": 1,
+                "line_end": 4,
+                "body_line_start": 2,
+                "body_line_end": 4,
+                "content_types": ["paragraph", "table"],
+                "labels": ["primary_content"],
+                "table_artifact_ids": ["sample_fixture-table-0003-table"],
+                "source_quote": "# Sample product\n\nCore benefit &lt;safe&gt; text.",
+            }
+        ],
+        "table_artifacts": [
+            {
+                "table_id": "sample_fixture-table-0003-table",
+                "section_id": "sample_fixture-sec-0001-sample-product",
+                "artifact_type": "markdown_table",
+                "line_start": 3,
+                "line_end": 4,
+                "source_quote": "| &lt;safe&gt; | value |",
+                "rows": [["raw", "value"]],
+            }
+        ],
+    }
+
+    validator.validate(document)
+
+    document["sections"][0]["source_quote"] = "# Sample product\n\nCore benefit <unsafe> text."
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(document)
+
+    document["sections"][0]["source_quote"] = "# Sample product\n\nCore benefit &lt;safe&gt; text."
+    document["table_artifacts"][0]["source_quote"] = "| <raw> | value |"
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(document)
+
+
+def test_cli_sectionizes_manifest_into_jsonl(tmp_path: Path) -> None:
+    out_path = tmp_path / "sections_structured.jsonl"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "life_product_extractor.cli",
+            "sectionize",
+            "--manifest",
+            str(ROOT / "examples" / "fixtures" / "manulife_tier1_curated" / "manifest.json"),
+            "--out",
+            str(out_path),
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["document_count"] == 8
+    documents = load_sections_jsonl(out_path)
+    assert len(documents) == 8
+    assert documents[0]["schema_version"] == "0.1"
 
 
 def test_routing_schema_accepts_minimal_classification_artifact() -> None:
