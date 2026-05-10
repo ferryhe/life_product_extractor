@@ -95,6 +95,33 @@ def test_ai_review_treats_already_reviewed_candidate_status_as_not_applicable() 
     assert unknown_review["reason_code"] == "explicit_unknown_already_reviewed"
 
 
+def test_ai_review_uses_stable_unknown_skillpack_for_empty_product_bundle() -> None:
+    candidate = {
+        "schema_version": "0.1",
+        "fixture_set_id": "empty_fixture_set",
+        "extraction_strategy": {
+            "deterministic": True,
+            "supported_product_classes": ["traditional_life"],
+            "supported_fixture_ids": ["empty_fixture_set"],
+        },
+        "summary": {
+            "product_count": 0,
+            "supported_document_count": 0,
+            "unsupported_document_count": 0,
+        },
+        "products": [],
+        "unsupported_documents": [],
+    }
+
+    validation_report = build_validation_report(candidate)
+    review = build_ai_review(candidate, validation_report=validation_report)
+
+    validate_ai_review_document(review)
+    assert review["reviewer"]["skillpack"] == "unknown/unknown"
+    assert review["reviewer"]["region_families"] == []
+    assert review["reviewer"]["product_classes"] == []
+
+
 def test_validation_and_ai_review_json_round_trip(tmp_path: Path) -> None:
     candidate = _candidate_bundle()
     report = build_validation_report(candidate)

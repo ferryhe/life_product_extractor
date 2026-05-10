@@ -412,7 +412,9 @@ def _reviewer_descriptor(candidate_bundle: Mapping[str, Any]) -> dict[str, Any]:
     product_identities = [product["product_identity"] for product in candidate_bundle["products"]]
     region_families = sorted({str(identity["region_family"]) for identity in product_identities})
     product_classes = sorted({str(identity["product_class_primary"]) for identity in product_identities})
-    if len(region_families) == 1 and len(product_classes) == 1:
+    if not region_families and not product_classes:
+        skillpack = "unknown/unknown"
+    elif len(region_families) == 1 and len(product_classes) == 1:
         skillpack = f"{region_families[0]}/{product_classes[0]}"
     elif len(region_families) == 1:
         skillpack = f"{region_families[0]}/mixed_" + "_".join(product_classes)
