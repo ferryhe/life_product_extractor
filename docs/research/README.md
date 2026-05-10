@@ -6,6 +6,8 @@ Current notes:
 
 1. `product-taxonomy-and-skill-map.md` — region/product-class taxonomy and how extractor/reviewer skills should be organized.
 2. `decrement-and-benefit-decomposition.md` — domain decomposition around decrements, benefits, triggers, calculation methods, evidence, and review routing.
+3. `architecture-and-pr-roadmap.md` — CLI/API architecture, AI review flow, skill-pack lifecycle, and staged PR plan.
+4. `manulife-real-test-pr-plan.md` — Manulife real-product source catalog, fixture tiers, and implementation PR sequence grounded in real products.
 
 Working assumptions:
 
