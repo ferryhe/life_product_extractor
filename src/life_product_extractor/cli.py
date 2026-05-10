@@ -23,6 +23,12 @@ from .review import (
 )
 from .routing import RoutingContractError, classify_fixture_manifest_from_path
 from .sections import SectionContractError, sectionize_fixture_manifest_from_path
+from .orchestration import render_status_report_markdown, run_pipeline_from_path
+from .status import (
+    StatusContractError,
+    build_status_report_from_artifact_paths,
+    build_status_report_from_reviewed_path,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -239,6 +245,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     review_apply.set_defaults(func=_cmd_review_apply)
 
+    run = subparsers.add_parser(
+        "run",
+        help="Run classify -> sectionize -> extract -> validate -> ai-review -> review HTML/status artifacts.",
+    )
+    run.add_argument("--manifest", type=Path, required=True, help="Path to a curated fixture manifest JSON file.")
+    run.add_argument("--out", type=Path, required=True, help="Directory where pipeline artifacts will be written.")
+    run.set_defaults(func=_cmd_run)
+
+    status = subparsers.add_parser(
+        "status",
+        help="Build status_report.json and status_report.md from reviewed JSON or run artifacts.",
+    )
+    status.add_argument("--reviewed", type=Path, default=None, help="Path to reviewed.json produced by review apply.")
+    status.add_argument("--candidate", type=Path, default=None, help="Path to candidate.json for no-human-decision run status.")
+    status.add_argument("--validation", type=Path, default=None, help="Path to validation_report.json for run status.")
+    status.add_argument("--ai-review", dest="ai_review", type=Path, default=None, help="Path to ai_review.json for run status.")
+    status.add_argument("--out-json", type=Path, required=True, help="Path where status_report.json will be written.")
+    status.add_argument("--out-md", type=Path, required=True, help="Path where status_report.md will be written.")
+    status.set_defaults(func=_cmd_status)
+
     return parser
 
 
@@ -257,6 +283,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         SectionContractError,
         CandidateContractError,
         ReviewContractError,
+        StatusContractError,
     ) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
@@ -422,6 +449,43 @@ def _cmd_review_apply(args: argparse.Namespace) -> int:
                 "fixture_set_id": reviewed["fixture_set_id"],
                 "decisions_applied_count": len(reviewed["review_metadata"]["decisions_applied"]),
                 "reviewed_path": str(args.out),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    result = run_pipeline_from_path(args.manifest, out_dir=args.out)
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def _cmd_status(args: argparse.Namespace) -> int:
+    if args.reviewed is not None:
+        report = build_status_report_from_reviewed_path(args.reviewed)
+    elif args.candidate is not None and args.validation is not None and args.ai_review is not None:
+        report = build_status_report_from_artifact_paths(
+            candidate_path=args.candidate,
+            validation_path=args.validation,
+            ai_review_path=args.ai_review,
+        )
+    else:
+        raise StatusContractError("status requires either --reviewed or all of --candidate --validation --ai-review")
+    args.out_json.parent.mkdir(parents=True, exist_ok=True)
+    args.out_md.parent.mkdir(parents=True, exist_ok=True)
+    args.out_json.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    args.out_md.write_text(render_status_report_markdown(report), encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "fixture_set_id": report["fixture_set_id"],
+                "status": report["summary"]["status"],
+                "status_json_path": str(args.out_json),
+                "status_md_path": str(args.out_md),
             },
             ensure_ascii=False,
             sort_keys=True,

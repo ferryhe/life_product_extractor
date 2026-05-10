@@ -157,6 +157,7 @@ def build_ai_review(candidate_bundle: Mapping[str, Any], *, validation_report: M
         "schema_version": "0.1",
         "run_id": str(validation_report["run_id"]),
         "candidate_fixture_set_id": str(candidate_bundle["fixture_set_id"]),
+        "candidate_digest": str(validation_report["candidate_digest"]),
         "reviewer": reviewer,
         "summary": summary,
         "field_reviews": field_reviews,
@@ -248,6 +249,7 @@ def apply_review_decisions(candidate_bundle: Mapping[str, Any], *, decisions: Ma
     reviewed["review_metadata"] = {
         "schema_version": "0.1",
         "source": "review_decisions",
+        "run_id": _run_id(candidate_bundle),
         "reviewer": str(decisions.get("reviewer", "unknown")),
         "decisions_applied": applied,
     }

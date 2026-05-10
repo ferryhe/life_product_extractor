@@ -10,10 +10,11 @@
       "properties": {
         "review_metadata": {
           "type": "object",
-          "required": ["schema_version", "source", "reviewer", "decisions_applied"],
+          "required": ["schema_version", "source", "run_id", "reviewer", "decisions_applied"],
           "properties": {
             "schema_version": { "const": "0.1" },
             "source": { "const": "review_decisions" },
+            "run_id": { "type": "string", "minLength": 1 },
             "reviewer": { "type": "string", "minLength": 1 },
             "decisions_applied": {
               "type": "array",
