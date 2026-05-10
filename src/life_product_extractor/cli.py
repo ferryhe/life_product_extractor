@@ -13,6 +13,7 @@ from .fixtures import (
     build_fixture_bundle_from_paths,
 )
 from .resources import resource_path
+from .routing import RoutingContractError, classify_fixture_manifest_from_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,6 +61,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build_fixtures.set_defaults(func=_cmd_build_fixtures)
 
+    classify = subparsers.add_parser(
+        "classify",
+        help="Classify a curated fixture manifest into deterministic routing.json output.",
+    )
+    classify.add_argument(
+        "--manifest",
+        type=Path,
+        required=True,
+        help="Path to a curated fixture manifest JSON file.",
+    )
+    classify.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Path where routing.json will be written.",
+    )
+    classify.add_argument(
+        "--catalog",
+        type=Path,
+        default=None,
+        help="Optional path to a source catalog YAML file. Defaults to the catalog referenced by the manifest.",
+    )
+    classify.set_defaults(func=_cmd_classify)
+
     return parser
 
 
@@ -71,7 +96,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         return int(args.func(args))
-    except (SourceCatalogError, FixtureContractError) as exc:
+    except (SourceCatalogError, FixtureContractError, RoutingContractError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
 
@@ -105,6 +130,26 @@ def _cmd_build_fixtures(args: argparse.Namespace) -> int:
                 "document_count": len(manifest["documents"]),
                 "scenario_count": len(manifest["paired_source_scenarios"]),
                 "manifest_path": str(args.out_dir / "manifest.json"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _cmd_classify(args: argparse.Namespace) -> int:
+    routing = classify_fixture_manifest_from_path(args.manifest, catalog_path=args.catalog)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(routing, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "fixture_set_id": routing["fixture_set_id"],
+                "document_count": routing["summary"]["document_count"],
+                "scenario_count": routing["summary"]["scenario_count"],
+                "routing_path": str(args.out),
             },
             ensure_ascii=False,
             sort_keys=True,
