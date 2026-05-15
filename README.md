@@ -157,6 +157,9 @@ curl -s http://127.0.0.1:8000/v1/runs/run \
 
 ```text
 docs/research/                         Architecture and domain research notes
+docs/agents/                           Agent workflow, issue slicing, and triage labels
+docs/adr/                              Durable architecture/workflow decisions
+CONTEXT.md                             Domain vocabulary, invariants, and verification commands
 examples/fixtures/manulife_tier1_curated/  Curated Markdown fixture set + manifest
 examples/sources/manulife_sources.yaml     Source catalog example
 examples/run_orchestration_minimal/        End-to-end local smoke example
